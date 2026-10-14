@@ -1,0 +1,121 @@
+# 🧠 AI & Machine Learning Service (`ai-service`)
+
+The **AI Service** is a high-performance Python 3.11 service built with **FastAPI**, **Pandas**, **NumPy**, and **Scikit-learn**. It handles mathematical technical indicator computation, feature extraction, graph vector caching, pattern recognition, ML model training/prediction, and LLM synthesis.
+
+---
+
+## 🎯 Key Responsibilities
+
+1. **Graph Vector Caching & Anti-Leakage Feature Engineering (`app/ml/features.py`):**
+   - Transforms raw OHLCV candle streams into normalized feature matrices.
+   - **Vector Caching:** Caches computed graph feature vectors in memory/Redis by candle data hash so repetitive model training and evaluation run instantly without re-extracting matrices.
+   - **Multi-Horizon Lookbacks:** Calculates micro-momentum over the last 10 periods/minutes, momentum acceleration, and macro position relative to 30-to-100-period channels.
+   - **Candlestick Pattern Recognition:** Identifies Bullish Hammers/Pin Bars, Shooting Stars, Bullish & Bearish Engulfing bars, and Volatility Squeezes.
+
+2. **Machine Learning Directional Forecasting (`app/ml/models.py` & `app/routers/ml.py`):**
+   - Trains and evaluates supervised directional classifiers (`RandomForestClassifier`, `LogisticRegression`, and `XGBoost`).
+   - Uses strict chronological train/test splitting (80% train, 20% test) to prevent time-series lookahead bias.
+   - Walk-forward chronological cross-validation with rolling windows.
+   - **Zero-Stale Prediction Guarantee:** Inference is never served from a stale prediction cache; predictions are recalculated dynamically on the latest graph state.
+
+3. **Mathematical Indicator Engine (`app/indicators/calculator.py`):**
+   - High-precision vectorized computation of RSI(14), MACD(12, 26, 9), Bollinger Bands(20, 2), ATR(14), and simple/exponential moving averages.
+
+4. **Internal Real-Time Market Data Engine (`app/routers/yfinance_internal.py`):**
+   - Sub-second quote fetching using Yahoo Finance `fast_info` with historical candle fallback.
+   - Pre-mapped symbols for Indian equities (`.NS`, `.BO`), US stocks, commodities (`GC=F`, `CL=F`), and crypto.
+
+---
+
+## 📂 Directory Layout
+
+```
+ai-service/
+├── app/
+│   ├── ai/                      # LLM integration, sentiment analysis, and RAG
+│   │   ├── llm.py               # Google Gemini client and prompting
+│   │   ├── rag.py               # Retrieval-augmented generation for analyst queries
+│   │   └── sentiment.py         # Financial news sentiment analysis
+│   ├── indicators/
+│   │   └── calculator.py        # Core technical indicator math (RSI, MACD, BB, ATR, SMA)
+│   ├── ml/
+│   │   ├── features.py          # Vector caching, 10m micro/macro lookbacks & pattern recognition
+│   │   └── models.py            # Model training, artifact serialization & walk-forward validation
+│   ├── routers/
+│   │   ├── analysis.py          # LLM equity research note endpoint
+│   │   ├── health.py            # Service health & readiness checks
+│   │   ├── indicators.py        # Indicator computation API
+│   │   ├── ml.py                # Model training, inference, and walk-forward endpoints
+│   │   └── yfinance_internal.py # Internal market data provider proxy
+│   ├── cache.py                 # Multi-tier LRU TTL in-memory & Redis cache manager
+│   ├── config.py                # Environment configuration settings
+│   └── main.py                  # FastAPI application entrypoint and middleware
+├── tests/                       # Unit and integration test suite
+├── Dockerfile                   # Container definition
+├── requirements.txt             # Python package dependencies
+└── README.md                    # This document
+```
+
+---
+
+## ⚙️ Installation & Running Locally
+
+### Prerequisites
+- Python `>= 3.11`
+- `pip` and virtual environment tool (`venv`)
+
+### 1. Create and Activate Virtual Environment
+
+**Windows (PowerShell):**
+```powershell
+cd ai-service
+python -m venv venv
+.\venv\Scripts\activate
+```
+
+**Linux / macOS:**
+```bash
+cd ai-service
+python3 -m venv venv
+source venv/bin/activate
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Launch Development Server
+
+```bash
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+- **API Root / Health Check:** http://localhost:8000/health
+- **Interactive OpenAPI Documentation (Swagger):** http://localhost:8000/docs
+- **Alternative ReDoc Documentation:** http://localhost:8000/redoc
+
+---
+
+## 🧪 Running Tests
+
+Run the test suite using `pytest`:
+
+```bash
+pytest tests/ -v
+```
+
+---
+
+## 📡 Key API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Service health status and uptime |
+| `POST` | `/ml/train` | Trains an ML model on historical candles (caches feature vectors) |
+| `POST` | `/ml/predict` | Runs live inference on latest candles, returning probability & detected patterns |
+| `POST` | `/ml/walk-forward` | Chronological walk-forward model backtesting |
+| `POST` | `/indicators` | Computes RSI, MACD, Bollinger Bands, ATR for supplied candles |
+| `GET` | `/internal/yfinance/quote` | Internal sub-second real-time quote lookup |
+| `GET` | `/internal/yfinance/candles` | Internal OHLCV candle query with multi-interval support |
