@@ -299,7 +299,7 @@ export default function StockAnalysisPage() {
         interval={interval}
       />
 
-      {/* ── AI Live Signal Modal (90%+ Accuracy Buy / Sell Recommendation) ──── */}
+      {/* ── AI Live Signal Modal (Quantitative Statistical Recommendation) ──── */}
       <AILiveSignalModal
         isOpen={isAISignalOpen}
         onClose={() => setIsAISignalOpen(false)}

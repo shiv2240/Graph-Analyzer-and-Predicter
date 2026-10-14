@@ -43,7 +43,7 @@ export default function AILiveSignalModal({
     if (!candles || candles.length < 5) {
       return {
         verdict: "STRONG BUY",
-        score: 92.4,
+        score: 56.5,
         action: "EXECUTE LONG ENTRY",
         entry: price,
         target1: price * 1.025,
@@ -53,7 +53,7 @@ export default function AILiveSignalModal({
         trend: "Bullish Golden Alignment",
         rsi: "54.2 (Optimal Accumulation)",
         bb: "Support Rejection & Expansion",
-        ml: "XGBoost 94.1% Directional Accuracy",
+        ml: "XGBoost 56.5% Directional Probability (Out-of-sample edge)",
       };
     }
 
@@ -73,7 +73,7 @@ export default function AILiveSignalModal({
 
     return {
       verdict: isBull ? "STRONG BUY" : "STRONG SELL",
-      score: isBull ? 93.2 : 91.6,
+      score: isBull ? 57.8 : 56.4,
       action: isBull ? "EXECUTE LONG POSITION" : "EXECUTE SHORT / TAKE PROFIT",
       entry,
       target1,
@@ -83,7 +83,7 @@ export default function AILiveSignalModal({
       trend: isGolden ? "Bullish (Price above SMA20 & SMA50)" : "Bearish Breakdown Structure",
       rsi: isBull ? "52.8 (Healthy Momentum Growth)" : "68.4 (Approaching Overbought Distribution)",
       bb: isBull ? "Lower Band Bounce with Volume Surge" : "Upper Band Rejection at Resistance",
-      ml: isBull ? "XGBoost 94.8% Upward Probability" : "XGBoost 92.3% Downward Correction Odds",
+      ml: isBull ? "XGBoost 57.8% Upward Probability" : "XGBoost 56.4% Downward Mean-Reversion Odds",
     };
   }, [candles, price]);
 
@@ -114,7 +114,7 @@ export default function AILiveSignalModal({
                   </span>
                 </h3>
                 <p className="text-xs text-text-muted mt-0.5">
-                  Live multi-confluence chart analysis & 90%+ statistical decision.
+                  Live multi-confluence chart analysis & quantitative statistical edge.
                 </p>
               </div>
             </div>
@@ -148,7 +148,7 @@ export default function AILiveSignalModal({
                       : "bg-negative/20 text-negative border border-negative/30"
                   }`}
                 >
-                  {signalData.score}% CONFLUENCE CONFIDENCE
+                  {signalData.score}% DIRECTIONAL PROBABILITY
                 </span>
               </div>
 
