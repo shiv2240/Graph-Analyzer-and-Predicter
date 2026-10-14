@@ -1,0 +1,16 @@
+{
+  "name": "stock-intelligence-ai",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "start": "npm --prefix backend run start",
+    "dev": "npm --prefix backend run dev",
+    "db:migrate": "npm --prefix backend run db:migrate:dev",
+    "test": "npm --prefix backend run test"
+  },
+  "dependencies": {
+    "@neon/config": "^1.9.1",
+    "@neon/env": "^1.6.2"
+  }
+}

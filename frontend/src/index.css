@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-surface text-text-primary font-sans;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Default form controls to terminal dark theme with high contrast */
+  input, textarea, select {
+    @apply bg-surface-2 text-text-primary border-border;
+  }
+
+  input::placeholder, textarea::placeholder {
+    @apply text-text-muted;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-surface-1;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+@layer components {
+  /* Card */
+  .card {
+    @apply bg-surface-1 border border-border rounded-lg p-4;
+  }
+
+  .card-sm {
+    @apply bg-surface-1 border border-border rounded-lg p-3;
+  }
+
+  /* Price display */
+  .price-up {
+    @apply text-market-up;
+  }
+  .price-down {
+    @apply text-market-down;
+  }
+  .price-neutral {
+    @apply text-text-secondary;
+  }
+
+  /* Badge */
+  .badge {
+    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-2xs font-medium;
+  }
+  .badge-up {
+    @apply badge bg-market-up-subtle text-market-up;
+  }
+  .badge-down {
+    @apply badge bg-market-down-subtle text-market-down;
+  }
+  .badge-neutral {
+    @apply badge bg-surface-3 text-text-secondary;
+  }
+
+  /* Button */
+  .btn {
+    @apply inline-flex items-center gap-2 px-4 py-2 rounded-md font-medium text-sm
+           transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2
+           focus:ring-offset-surface disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-accent-blue text-white hover:bg-blue-500 focus:ring-accent-blue;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent text-text-secondary hover:bg-surface-2 hover:text-text-primary
+           focus:ring-border;
+  }
+  .btn-danger {
+    @apply btn bg-market-down-subtle text-market-down hover:bg-red-900/30 focus:ring-market-down;
+  }
+
+  /* Input */
+  .input {
+    @apply w-full bg-surface-2 border border-border rounded-md px-3 py-2 text-sm
+           text-text-primary placeholder:text-text-muted
+           focus:outline-none focus:border-accent-blue focus:ring-1 focus:ring-accent-blue
+           transition-colors;
+  }
+
+  /* Skeleton loader */
+  .skeleton {
+    @apply bg-surface-2 rounded animate-shimmer;
+    background: linear-gradient(
+      90deg,
+      theme(colors.surface.2) 25%,
+      theme(colors.surface.3) 50%,
+      theme(colors.surface.2) 75%
+    );
+    background-size: 200% 100%;
+  }
+
+  /* Data quality indicator */
+  .data-delayed {
+    @apply inline-flex items-center gap-1 text-2xs text-yellow-400/80;
+  }
+  .data-realtime {
+    @apply inline-flex items-center gap-1 text-2xs text-market-up;
+  }
+
+  /* Sidebar nav item */
+  .nav-item {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium
+           text-text-secondary hover:bg-surface-2 hover:text-text-primary
+           transition-all duration-150 cursor-pointer;
+  }
+  .nav-item-active {
+    @apply nav-item bg-surface-2 text-text-primary border-l-2 border-accent-blue;
+  }
+
+  /* Stat row */
+  .stat-row {
+    @apply flex items-center justify-between py-1.5 border-b border-border/50 last:border-0;
+  }
+  .stat-label {
+    @apply text-xs text-text-secondary;
+  }
+  .stat-value {
+    @apply text-xs font-mono text-text-primary font-medium;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-surface-1/80 backdrop-blur-sm border border-border/50;
+  }
+
+  /* Gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-accent-blue to-accent-purple bg-clip-text text-transparent;
+  }
+}

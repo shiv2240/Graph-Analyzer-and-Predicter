@@ -1,0 +1,103 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ──────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: stockintel_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockintel}
+      POSTGRES_USER: ${POSTGRES_USER:-stockintel}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme_strong_password}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockintel}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Backend (Node/Express) ──────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stockintel_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      BACKEND_PORT: ${BACKEND_PORT:-3001}
+      DATABASE_URL: ${DATABASE_URL}
+      AI_SERVICE_URL: ${AI_SERVICE_URL:-http://ai-service:8000}
+      YFINANCE_ENABLED: ${YFINANCE_ENABLED:-true}
+      ALPHA_VANTAGE_API_KEY: ${ALPHA_VANTAGE_API_KEY}
+      FINNHUB_API_KEY: ${FINNHUB_API_KEY}
+      UPSTOX_API_KEY: ${UPSTOX_API_KEY}
+      UPSTOX_API_SECRET: ${UPSTOX_API_SECRET}
+      UPSTOX_ACCESS_TOKEN: ${UPSTOX_ACCESS_TOKEN}
+      PROVIDER_REQUEST_TIMEOUT_MS: ${PROVIDER_REQUEST_TIMEOUT_MS:-10000}
+      CACHE_TTL_SECONDS: ${CACHE_TTL_SECONDS:-300}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./backend/src:/app/src:ro   # hot-reload in dev
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  # ── AI Service (Python/FastAPI) ─────────────────────────────────────────────
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: stockintel_ai
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AI_SERVICE_PORT: ${AI_SERVICE_PORT:-8000}
+      DATABASE_URL: ${DATABASE_URL}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "8000:8000"
+    volumes:
+      - ai_models:/app/models
+      - ai_faiss:/app/faiss_index
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 3
+
+  # ── Frontend (Vite dev server) ──────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: stockintel_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      VITE_BACKEND_URL: ${VITE_BACKEND_URL:-http://localhost:3001}
+      VITE_APP_TITLE: ${VITE_APP_TITLE:-Stock Intelligence AI}
+    ports:
+      - "5173:5173"
+
+volumes:
+  postgres_data:
+  ai_models:
+  ai_faiss:
