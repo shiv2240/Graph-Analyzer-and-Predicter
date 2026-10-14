@@ -48,7 +48,7 @@ export interface Quote {
 
 export interface CandleParams {
   symbol: string;
-  interval: "1d" | "1wk" | "1mo" | "1h" | "15m" | "5m" | "1m";
+  interval: "1d" | "1wk" | "1mo" | "1h" | "30m" | "15m" | "5m" | "1m";
   from: Date;
   to: Date;
 }
