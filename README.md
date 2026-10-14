@@ -17,9 +17,15 @@ An institutional-grade market intelligence, quantitative technical analysis, cha
 
 Financial markets turn on multi-dimensional factors: micro-momentum shifts, macro channel locations, candlestick reversal patterns, and multi-indicator technical confluence. **Graph Analyzer & Predictor** combines these factors into a unified institutional workspace:
 
-1. **High-Performance Multi-Timeframe Charting:**
+1. **High-Performance Multi-Timeframe Charting & Technical Drawing Suite:**
    - Interactive TradingView-style canvas built on Lightweight Charts.
-   - Multi-interval support: `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1w`, `1mo`.
+   - Comprehensive multi-interval filters: `1m`, `5m`, `15m`, `30m`, `1H`, `1D`, `1W`, `1M`, **`1Y` (1 Year daily candles)**, **`5Y` (5 Year weekly candles)**, and **`ALL` (All-Time monthly candles spanning 40+ years)**.
+   - **Interactive Investor Drawing & Annotation Editor Dropdown:**
+     - ✏️ **Pencil (Freehand):** Sketch custom pattern notes, circle inflection points, and draw arrows directly on chart candles.
+     - 📏 **Line (Trendline / Ray):** Draw trendlines, support/resistance rays, and breakout vectors with endpoint node caps.
+     - 🔲 **Square / Rectangle:** Plot supply & demand order blocks, consolidation boxes, and liquidity zones with semi-transparent fills.
+     - 🎨 **Styling Suite:** 6-color palette (Lime, Cyan, Yellow, Red, Purple, White) with variable stroke widths (Fine, Medium, Bold), Undo, and Clear All.
+     - ⚡ **Floating HUD Overlay:** Active drawing indicator pill with single-click exit toggle to normal cursor navigation (<kbd>Esc</kbd> supported).
    - Real-time 24/7 WebSocket live tick stream for cryptocurrencies (Binance WS) and fast polling for global equities & commodities.
    - Technical overlays: SMA 20, SMA 50, SMA 200, Bollinger Bands, RSI(14) oscillator, MACD histogram.
 

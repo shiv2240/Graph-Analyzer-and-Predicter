@@ -14,7 +14,7 @@ The **Backend Service** is a TypeScript and Node.js REST API gateway built with 
 
 2. **Expanded Quantitative Screener & Multi-Timeframe Engine (`src/routes/`):**
    - **`screener.ts`:** Powers multi-market screening over 95+ Indian (NIFTY 50) and US equities with live search, country/exchange filtering, sorting, and pagination.
-   - **`indicators.ts` & `instruments.ts`:** Full multi-timeframe candle and technical indicator support across `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`, `1mo`.
+   - **`indicators.ts` & `instruments.ts`:** Full multi-timeframe candle and technical indicator support across `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`, `1mo`, `1y` (1 Year daily), `5y` (5 Year weekly), and `all` (All-Time monthly) with provider resolution routing.
 
 3. **Multi-Tier Intelligent Caching (`src/cache/cacheService.ts`):**
    - **L1 Cache:** In-memory NodeCache for sub-millisecond local responses.

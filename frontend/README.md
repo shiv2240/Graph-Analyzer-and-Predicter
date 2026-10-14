@@ -6,10 +6,16 @@ The **Frontend Application** is an institutional-grade, responsive single-page w
 
 ## 🎯 Key Features & Modules
 
-1. **Pro Trading Chart Canvas (`src/components/charts/ProTradingChart.tsx`):**
+1. **Pro Trading Chart Canvas & Drawing Tools (`src/components/charts/ProTradingChart.tsx`):**
    - High-FPS canvas powered by TradingView's Lightweight Charts library.
    - Five chart types: **Candlestick**, **Bar Chart**, **Area Chart**, **Line**, and **Baseline**.
-   - Timeframe toggles: `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1w`, `1mo`.
+   - Comprehensive timeframe filters with smooth horizontal overflow handling: `1m`, `5m`, `15m`, `30m`, `1H`, `1D`, `1W`, `1M`, **`1Y` (1 Year)**, **`5Y` (5 Years)**, and **`ALL` (All-Time multi-decade history)**.
+   - **Interactive Technical Analysis & Drawing Editor Dropdown:**
+     - ✏️ **Pencil (Freehand):** Freeform annotations, marking candle tops/bottoms, and custom pattern outlines.
+     - 📏 **Line (Trendline / Ray):** Precision ray vectors for support/resistance channels and breakout trendlines.
+     - 🔲 **Square / Rectangle:** Visualizing order blocks, supply/demand zones, and consolidation ranges with semi-transparent tints.
+     - 🎨 **Customization Bar:** 6 curated colors (Lime, Cyan, Yellow, Red, Purple, White) + 3 stroke widths (Fine, Medium, Bold) + Undo & Clear All.
+     - ⚡ **Floating Status Bar:** Active drawing mode badge with instant Done toggle and <kbd>Esc</kbd> shortcut.
    - Technical overlays: SMA 20 (fast trend), SMA 50 (intermediate trend), SMA 200 (institutional baseline), and Bollinger Bands.
    - Live stream status indicator showing continuous Binance 24/7 WebSocket ticks for crypto or live Interbank polling.
 

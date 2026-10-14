@@ -21,10 +21,11 @@ The **AI Service** is a high-performance Python 3.11 service built with **FastAP
 
 3. **Mathematical Indicator Engine (`app/indicators/calculator.py`):**
    - High-precision vectorized computation of RSI(14), MACD(12, 26, 9), Bollinger Bands(20, 2), ATR(14), and simple/exponential moving averages.
-   - Multi-interval support: `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`, `1mo`.
+   - Multi-interval support: `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`, `1mo`, `1y`, `5y`, `all`.
 
 4. **Internal Real-Time Market Data Engine (`app/routers/yfinance_internal.py`):**
    - Sub-second quote fetching using Yahoo Finance with historical candle fallback.
+   - Native period routing: `period="1y"` for 1-year daily candles, `period="5y"` for 5-year weekly bars, and `period="max"` for multi-decade monthly history.
    - Pre-mapped symbols for Indian equities (`.NS`, `.BO`), US stocks, commodities (`GC=F`, `CL=F`), and crypto.
    - Normalized quote dictionary outputs ensuring both snake_case and camelCase compatibility with the Node.js gateway.
 
