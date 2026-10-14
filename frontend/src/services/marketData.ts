@@ -175,8 +175,14 @@ export async function trainMLModel(symbol: string, modelType = "xgboost", target
   return data;
 }
 
-export async function runScreener(filters: any[] = [], sort?: { field: string; direction: "asc" | "desc" }) {
-  const { data } = await apiClient.post("/screener", { filters, sort, page: 1, limit: 50 });
+export async function runScreener(
+  filters: any[] = [],
+  sort?: { field: string; direction: "asc" | "desc" },
+  page = 1,
+  limit = 20,
+  search = ""
+) {
+  const { data } = await apiClient.post("/screener", { filters, sort, page, limit, search });
   return data;
 }
 

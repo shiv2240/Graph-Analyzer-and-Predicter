@@ -85,9 +85,24 @@ export class YFinanceProvider implements MarketDataProvider {
         throw new InstrumentNotSupportedError(symbol);
       }
 
+      const d = response.data;
+      const isINR = symbol.endsWith(".NS") || symbol.endsWith(".BO") || symbol.startsWith("^NSE") || symbol === "^BSESN";
       return {
-        ...response.data,
-        dataQuality: this.buildDataQuality(response.data),
+        symbol: d.symbol ?? symbol,
+        price: d.price ?? 0,
+        changeAbs: d.change_abs ?? d.changeAbs ?? 0,
+        changePct: d.change_pct ?? d.changePct ?? 0,
+        change_abs: d.change_abs ?? d.changeAbs ?? 0,
+        change_pct: d.change_pct ?? d.changePct ?? 0,
+        volume: d.volume ?? 0,
+        dayHigh: d.day_high ?? d.dayHigh ?? d.price ?? 0,
+        dayLow: d.day_low ?? d.dayLow ?? d.price ?? 0,
+        day_high: d.day_high ?? d.dayHigh ?? d.price ?? 0,
+        day_low: d.day_low ?? d.dayLow ?? d.price ?? 0,
+        prevClose: d.prev_close ?? d.prevClose ?? d.price ?? 0,
+        prev_close: d.prev_close ?? d.prevClose ?? d.price ?? 0,
+        currency: d.currency ?? (isINR ? "INR" : "USD"),
+        dataQuality: this.buildDataQuality(d),
       } as Quote;
     } catch (err) {
       if (err instanceof InstrumentNotSupportedError) throw err;

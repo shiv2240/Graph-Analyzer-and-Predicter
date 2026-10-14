@@ -77,24 +77,34 @@ export default function StockAnalysisPage() {
 
   const candles = candlesData?.candles || [];
   const indicators = indicatorsData?.indicators;
-  const isINR = symbol.endsWith(".NS") || symbol.endsWith(".BO");
+  const isINR = symbol.endsWith(".NS") || symbol.endsWith(".BO") || symbol.startsWith("^NSE") || symbol === "^BSESN";
   const currency = isINR ? "INR" : "USD";
+  const currSym = isINR ? "₹" : "$";
+
+  // Safely extract quote metrics with fallbacks for both camelCase & snake_case
+  const rawPrice = quote?.price;
+  const changePct = quote?.changePct ?? (quote as any)?.change_pct ?? 0;
+  const changeAbs = quote?.changeAbs ?? (quote as any)?.change_abs ?? 0;
+  const dayHigh = quote?.dayHigh ?? (quote as any)?.day_high ?? rawPrice;
+  const dayLow = quote?.dayLow ?? (quote as any)?.day_low ?? rawPrice;
+  const prevClose = quote?.prevClose ?? (quote as any)?.prev_close ?? rawPrice;
+  const isPos = changePct >= 0;
 
   return (
     <div className="space-y-5 max-w-[1720px] mx-auto pb-10">
       {/* ── Top Header & Global Asset Selector ───────────────────────────────── */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border/80 pb-4">
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-3.5 flex-wrap lg:flex-nowrap">
           <Link
             to="/explorer"
-            className="p-2.5 text-text-muted hover:text-text-primary bg-surface-2 hover:bg-surface-3 rounded-xl border border-border/60 transition-colors"
+            className="p-2.5 text-text-muted hover:text-text-primary bg-surface-2 hover:bg-surface-3 rounded-xl border border-border/60 transition-colors shrink-0"
             title="Back to Explorer"
           >
             <ArrowLeft className="h-4 w-4" />
           </Link>
 
           {/* Quick Dropdown Asset Switcher */}
-          <div className="w-72 sm:w-80">
+          <div className="w-64 sm:w-76 shrink-0">
             <StockSelectDropdown
               value={symbol}
               onChange={(newSym) => navigate(`/stocks/${encodeURIComponent(newSym)}`)}
@@ -102,24 +112,25 @@ export default function StockAnalysisPage() {
           </div>
 
           {quote && (
-            <div className="hidden lg:flex items-center gap-2">
-              <span className="badge badge-surface text-xs font-semibold px-2.5 py-1 bg-surface-2 border border-border/60">
-                {isINR ? "NSE / BSE" : "Global Asset"}
+            <div className="hidden xl:flex items-center gap-2.5 shrink-0 whitespace-nowrap">
+              <span className="badge badge-surface text-xs font-semibold px-2.5 py-1 bg-surface-2 border border-border/60 shrink-0">
+                {isINR ? "🇮🇳 NSE / BSE" : "🇺🇸 USA Market"}
               </span>
-              {quote.dataQuality && <DataQualityBadge quality={quote.dataQuality} />}
+              {quote.dataQuality && <DataQualityBadge quality={quote.dataQuality} className="shrink-0" />}
             </div>
           )}
         </div>
 
         {/* Right side shortcuts */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 shrink-0">
           {quote && (
-            <div className="text-right hidden sm:block font-mono">
-              <div className="text-sm font-extrabold text-text-primary">
-                {currency === "INR" ? "₹" : "$"}{quote.price?.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <div className="text-right hidden sm:block font-mono shrink-0 whitespace-nowrap">
+              <div className="text-base font-extrabold text-text-primary">
+                {currSym}{typeof rawPrice === "number" ? rawPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "—"}
               </div>
-              <div className={`text-xs font-semibold ${quote.changePct && quote.changePct >= 0 ? "text-positive" : "text-negative"}`}>
-                {quote.changePct && quote.changePct >= 0 ? "+" : ""}{quote.changePct?.toFixed(2)}% ({quote.changeAbs && quote.changeAbs >= 0 ? "+" : ""}{quote.changeAbs?.toFixed(2)})
+              <div className={`text-xs font-semibold flex items-center justify-end gap-1 ${isPos ? "text-positive" : "text-negative"}`}>
+                <span>{isPos ? "+" : ""}{Number(changePct).toFixed(2)}%</span>
+                <span>({isPos ? "+" : ""}{currSym}{Math.abs(Number(changeAbs)).toFixed(2)})</span>
               </div>
             </div>
           )}
@@ -128,7 +139,7 @@ export default function StockAnalysisPage() {
           <button
             type="button"
             onClick={() => setIsAISignalOpen(true)}
-            className="relative group inline-flex items-center gap-2 text-xs font-extrabold py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="relative group inline-flex items-center gap-2 text-xs font-extrabold py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 shadow-[0_0_20px_rgba(16,185,129,0.35)] transition-all hover:scale-[1.02] active:scale-[0.98] shrink-0"
             title="Get AI Confluence Live BUY/SELL Decision"
           >
             <span className="relative flex h-2 w-2">
@@ -141,7 +152,7 @@ export default function StockAnalysisPage() {
 
           <Link
             to={`/ai-research?symbol=${encodeURIComponent(symbol)}`}
-            className="inline-flex items-center gap-2 text-xs font-semibold py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all"
+            className="inline-flex items-center gap-2 text-xs font-semibold py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)] transition-all shrink-0"
           >
             <Cpu className="h-4 w-4" />
             <span className="hidden sm:inline">Research Note</span>
@@ -154,19 +165,19 @@ export default function StockAnalysisPage() {
         <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
           <span className="text-[11px] text-text-muted block">Day High</span>
           <span className="font-bold font-mono text-positive text-sm mt-0.5 block">
-            {quote?.dayHigh ? `${currency === "INR" ? "₹" : "$"}${quote.dayHigh.toFixed(2)}` : "—"}
+            {dayHigh !== undefined && dayHigh !== null ? `${currSym}${Number(dayHigh).toFixed(2)}` : "—"}
           </span>
         </div>
         <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
           <span className="text-[11px] text-text-muted block">Day Low</span>
           <span className="font-bold font-mono text-negative text-sm mt-0.5 block">
-            {quote?.dayLow ? `${currency === "INR" ? "₹" : "$"}${quote.dayLow.toFixed(2)}` : "—"}
+            {dayLow !== undefined && dayLow !== null ? `${currSym}${Number(dayLow).toFixed(2)}` : "—"}
           </span>
         </div>
         <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
           <span className="text-[11px] text-text-muted block">Prev. Close</span>
           <span className="font-bold font-mono text-text-primary text-sm mt-0.5 block">
-            {quote?.prevClose ? `${currency === "INR" ? "₹" : "$"}${quote.prevClose.toFixed(2)}` : "—"}
+            {prevClose !== undefined && prevClose !== null ? `${currSym}${Number(prevClose).toFixed(2)}` : "—"}
           </span>
         </div>
         <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
@@ -178,7 +189,7 @@ export default function StockAnalysisPage() {
         <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
           <span className="text-[11px] text-text-muted block">RSI (14) Momentum</span>
           <span className="font-bold font-mono text-brand text-sm mt-0.5 block">
-            {indicators?.rsi?.["14"] ? indicators.rsi["14"].toFixed(1) : "52.4"}
+            {indicators?.rsi?.["14"] ? Number(indicators.rsi["14"]).toFixed(1) : "52.4"}
           </span>
         </div>
         <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
