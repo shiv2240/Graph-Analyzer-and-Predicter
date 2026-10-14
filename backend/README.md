@@ -9,18 +9,23 @@ The **Backend Service** is a TypeScript and Node.js REST API gateway built with 
 1. **Market Data Provider Registry (`src/providers/`):**
    - Pluggable provider architecture (`yfinanceProvider`, `finnhubProvider`, `upstoxProvider`).
    - Automatically selects the optimal provider based on symbol format (e.g. `.NS`/`.BO` for Indian exchanges, US tickers, Crypto, Commodity futures).
+   - Normalized quote response standardizing data engine keys into camelCase interfaces (`changePct`, `changeAbs`, `dayHigh`, `dayLow`, `prevClose`) with full fallback support.
    - Graceful fallback and health status monitoring.
 
-2. **Multi-Tier Intelligent Caching (`src/cache/cacheService.ts`):**
+2. **Expanded Quantitative Screener & Multi-Timeframe Engine (`src/routes/`):**
+   - **`screener.ts`:** Powers multi-market screening over 95+ Indian (NIFTY 50) and US equities with live search, country/exchange filtering, sorting, and pagination.
+   - **`indicators.ts` & `instruments.ts`:** Full multi-timeframe candle and technical indicator support across `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`, `1mo`.
+
+3. **Multi-Tier Intelligent Caching (`src/cache/cacheService.ts`):**
    - **L1 Cache:** In-memory NodeCache for sub-millisecond local responses.
    - **L2 Cache:** Distributed Redis cache (with seamless fallback to L1 if Redis is offline).
    - **Data vs. Analysis Separation:** Caches raw candle graph data and provider responses while bypassing stale caches for AI analysis so predictions always adapt to graph changes.
 
-3. **Database & Persistence (`src/db/`):**
+4. **Database & Persistence (`src/db/`):**
    - PostgreSQL connection pool using `pg`.
    - Sequential schema migrations for instruments, candles, quotes, portfolios, and backtest results.
 
-4. **Input Validation & Security (`src/middleware/`):**
+5. **Input Validation & Security (`src/middleware/`):**
    - Strict Zod schemas validating all incoming query parameters and request bodies.
    - Centralized error handling and structured JSON logging with Pino.
 

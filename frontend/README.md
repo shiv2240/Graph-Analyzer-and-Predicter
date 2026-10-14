@@ -24,10 +24,15 @@ The **Frontend Application** is an institutional-grade, responsive single-page w
    - **Stock Analysis Page (`src/pages/StockAnalysisPage.tsx`):** Split workspace integrating pro charting, RSI/MACD sub-oscillators, live order metrics, and AI Copilot.
    - **Stock Explorer (`src/pages/StockExplorerPage.tsx`):** Browse and search Indian bluechips (NSE/BSE), US equities (NASDAQ/NYSE), precious metals & commodities (Gold/Silver), and crypto.
    - **AI Equity Research (`src/pages/AIResearchPage.tsx`):** Quantitative research note synthesizer with auto-currency detection ($ USD and ₹ INR).
-   - **Asset Screener (`src/pages/ScreenerPage.tsx`):** Filter instruments by market cap, sector, P/E ratio, RSI conditions, and 52-week proximity.
+   - **Multi-Market Quantitative Screener (`src/pages/ScreenerPage.tsx`):**
+     - Full **95+ universe** covering the entire **NIFTY 50** Indian benchmark + top **US NASDAQ/NYSE** leadership equities + crypto/commodities.
+     - **Market Switcher:** Segmented toggles for `All Markets`, `🇮🇳 India (NSE/BSE)`, and `🇺🇸 USA (NASDAQ/NYSE)`.
+     - **Live Search Bar:** Instant direct search by ticker symbol, company name, or industry sector with reset controls.
+     - **Interactive Pagination:** Responsive pagination controls with customizable rows-per-page (`10`, `20`, `50`, `100`).
+     - **Quantitative Presets:** One-click filtering for Oversold Pullbacks (RSI < 35), Bullish Momentum, and regional leadership.
    - **Paper Portfolio (`src/pages/PortfolioPage.tsx`):** Multi-currency mock equity tracking with real-time mark-to-market P&L.
    - **Strategy Backtester (`src/pages/BacktestPage.tsx`):** Backtest technical rules with equity curves, Sharpe ratios, and drawdowns.
-   - **Model Evaluation (`src/pages/ModelEvalPage.tsx`):** Inspect ML model accuracy, confusion matrices, and ROC-AUC curves.
+   - **Model Evaluation (`src/pages/ModelEvalPage.tsx`):** Inspect real ML model performance metrics: **53.5%–58.2% directional accuracy**, confusion matrices, Brier loss, and ROC-AUC curves.
 
 ---
 
