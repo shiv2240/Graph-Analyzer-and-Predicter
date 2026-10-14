@@ -23,12 +23,111 @@ import {
   Sliders,
   Eye,
   EyeOff,
+  Pencil,
+  Minus,
+  Square,
+  MousePointer,
+  ChevronDown,
+  Trash2,
+  Undo2,
+  Palette,
+  X,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CandleBar } from "../../services/marketData";
 import { useLiveMarketStream } from "../../services/liveStreamService";
 
 export type ChartType = "candlestick" | "bar" | "area" | "line" | "baseline";
+export type DrawingTool = "cursor" | "pencil" | "line" | "rect";
+
+export interface DrawingItem {
+  id: string;
+  type: "pencil" | "line" | "rect";
+  color: string;
+  width: number;
+  points?: { x: number; y: number }[];
+  x1?: number;
+  y1?: number;
+  x2?: number;
+  y2?: number;
+}
+
+function renderCanvasDrawings(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  drawings: DrawingItem[],
+  inProgress?: DrawingItem | null
+) {
+  ctx.clearRect(0, 0, width, height);
+
+  const drawShape = (item: DrawingItem) => {
+    ctx.save();
+    ctx.strokeStyle = item.color;
+    ctx.lineWidth = item.width;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+
+    if (item.type === "pencil" && item.points && item.points.length > 1) {
+      ctx.beginPath();
+      ctx.moveTo(item.points[0].x, item.points[0].y);
+      for (let i = 1; i < item.points.length; i++) {
+        ctx.lineTo(item.points[i].x, item.points[i].y);
+      }
+      ctx.stroke();
+    } else if (
+      item.type === "line" &&
+      item.x1 !== undefined &&
+      item.y1 !== undefined &&
+      item.x2 !== undefined &&
+      item.y2 !== undefined
+    ) {
+      ctx.beginPath();
+      ctx.moveTo(item.x1, item.y1);
+      ctx.lineTo(item.x2, item.y2);
+      ctx.stroke();
+
+      // Nodes on endpoints
+      ctx.fillStyle = item.color;
+      ctx.beginPath();
+      ctx.arc(item.x1, item.y1, Math.max(3, item.width + 1), 0, Math.PI * 2);
+      ctx.arc(item.x2, item.y2, Math.max(3, item.width + 1), 0, Math.PI * 2);
+      ctx.fill();
+    } else if (
+      item.type === "rect" &&
+      item.x1 !== undefined &&
+      item.y1 !== undefined &&
+      item.x2 !== undefined &&
+      item.y2 !== undefined
+    ) {
+      const x = Math.min(item.x1, item.x2);
+      const y = Math.min(item.y1, item.y2);
+      const w = Math.abs(item.x2 - item.x1);
+      const h = Math.abs(item.y2 - item.y1);
+
+      // Semi-transparent fill for order block / zone
+      ctx.fillStyle = `${item.color}2e`;
+      ctx.fillRect(x, y, w, h);
+
+      // Border outline
+      ctx.strokeRect(x, y, w, h);
+
+      // Corner handles
+      ctx.fillStyle = item.color;
+      const handleSize = 4;
+      ctx.fillRect(x - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+      ctx.fillRect(x + w - handleSize / 2, y - handleSize / 2, handleSize, handleSize);
+      ctx.fillRect(x - handleSize / 2, y + h - handleSize / 2, handleSize, handleSize);
+      ctx.fillRect(x + w - handleSize / 2, y + h - handleSize / 2, handleSize, handleSize);
+    }
+    ctx.restore();
+  };
+
+  drawings.forEach(drawShape);
+  if (inProgress) {
+    drawShape(inProgress);
+  }
+}
 
 interface ProTradingChartProps {
   candles: CandleBar[];
@@ -116,7 +215,168 @@ export default function ProTradingChart({
     { id: "1d", label: "1D" },
     { id: "1wk", label: "1W" },
     { id: "1mo", label: "1M" },
+    { id: "1y", label: "1Y" },
+    { id: "5y", label: "5Y" },
+    { id: "all", label: "ALL" },
   ];
+
+  // ── Investor Analysis Drawing Tools State ─────────────────────────────────
+  const [activeDrawingTool, setActiveDrawingTool] = useState<DrawingTool>("cursor");
+  const [drawingColor, setDrawingColor] = useState<string>("#22c55e");
+  const [drawingWidth, setDrawingWidth] = useState<number>(2.5);
+  const [drawings, setDrawings] = useState<DrawingItem[]>([]);
+  const [inProgressDrawing, setInProgressDrawing] = useState<DrawingItem | null>(null);
+  const [isDrawingDropdownOpen, setIsDrawingDropdownOpen] = useState(false);
+
+  const drawingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const drawingMenuRef = useRef<HTMLDivElement | null>(null);
+  const isMouseDownRef = useRef(false);
+
+  // Redraw whenever drawings or inProgressDrawing changes
+  useEffect(() => {
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    renderCanvasDrawings(ctx, canvas.width, canvas.height, drawings, inProgressDrawing);
+  }, [drawings, inProgressDrawing]);
+
+  // Sync canvas dimensions with parent element
+  useEffect(() => {
+    const canvas = drawingCanvasRef.current;
+    if (!canvas || !canvas.parentElement) return;
+
+    const resizeCanvas = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      if (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight) {
+        canvas.width = parent.clientWidth;
+        canvas.height = parent.clientHeight;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          renderCanvasDrawings(ctx, canvas.width, canvas.height, drawings, inProgressDrawing);
+        }
+      }
+    };
+
+    resizeCanvas();
+    const observer = new ResizeObserver(resizeCanvas);
+    observer.observe(canvas.parentElement);
+    return () => observer.disconnect();
+  }, [drawings, inProgressDrawing]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (drawingMenuRef.current && !drawingMenuRef.current.contains(e.target as Node)) {
+        setIsDrawingDropdownOpen(false);
+      }
+    };
+    if (isDrawingDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isDrawingDropdownOpen]);
+
+  // Keyboard shortcut: Esc to switch back to cursor mode
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveDrawingTool("cursor");
+        setIsDrawingDropdownOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const handleCanvasMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (activeDrawingTool === "cursor") return;
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    isMouseDownRef.current = true;
+
+    if (activeDrawingTool === "pencil") {
+      setInProgressDrawing({
+        id: Math.random().toString(36).slice(2),
+        type: "pencil",
+        color: drawingColor,
+        width: drawingWidth,
+        points: [{ x, y }],
+      });
+    } else if (activeDrawingTool === "line") {
+      setInProgressDrawing({
+        id: Math.random().toString(36).slice(2),
+        type: "line",
+        color: drawingColor,
+        width: drawingWidth,
+        x1: x,
+        y1: y,
+        x2: x,
+        y2: y,
+      });
+    } else if (activeDrawingTool === "rect") {
+      setInProgressDrawing({
+        id: Math.random().toString(36).slice(2),
+        type: "rect",
+        color: drawingColor,
+        width: drawingWidth,
+        x1: x,
+        y1: y,
+        x2: x,
+        y2: y,
+      });
+    }
+  };
+
+  const handleCanvasMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isMouseDownRef.current || !inProgressDrawing) return;
+    const canvas = drawingCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (inProgressDrawing.type === "pencil") {
+      setInProgressDrawing((prev) =>
+        prev
+          ? {
+              ...prev,
+              points: [...(prev.points || []), { x, y }],
+            }
+          : null
+      );
+    } else if (inProgressDrawing.type === "line" || inProgressDrawing.type === "rect") {
+      setInProgressDrawing((prev) =>
+        prev
+          ? {
+              ...prev,
+              x2: x,
+              y2: y,
+            }
+          : null
+      );
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    if (!isMouseDownRef.current) return;
+    isMouseDownRef.current = false;
+    if (inProgressDrawing) {
+      if (
+        (inProgressDrawing.type === "pencil" && inProgressDrawing.points && inProgressDrawing.points.length > 1) ||
+        (inProgressDrawing.type === "line" && (inProgressDrawing.x1 !== inProgressDrawing.x2 || inProgressDrawing.y1 !== inProgressDrawing.y2)) ||
+        (inProgressDrawing.type === "rect" && Math.abs((inProgressDrawing.x2 ?? 0) - (inProgressDrawing.x1 ?? 0)) > 3)
+      ) {
+        setDrawings((prev) => [...prev, inProgressDrawing]);
+      }
+      setInProgressDrawing(null);
+    }
+  };
 
   // Helper mathematical indicator calculators
   const processedData = useMemo(() => {
@@ -502,13 +762,13 @@ export default function ProTradingChart({
 
           <div className="h-5 w-px bg-border/60 mx-1 hidden sm:block" />
           {/* Timeframes */}
-          <div className="flex items-center bg-surface-2/80 rounded-xl p-1 border border-border/60">
+          <div className="flex items-center bg-surface-2/80 rounded-xl p-1 border border-border/60 overflow-x-auto max-w-[430px] scrollbar-none">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf.id}
                 type="button"
                 onClick={() => onIntervalChange(tf.id)}
-                className={`px-2.5 py-1 rounded-lg font-mono font-semibold text-xs transition-all ${
+                className={`px-2 py-1 rounded-lg font-mono font-semibold text-xs transition-all shrink-0 ${
                   interval === tf.id
                     ? "bg-brand text-white shadow-md"
                     : "text-text-muted hover:text-text-primary hover:bg-surface-3"
@@ -547,6 +807,212 @@ export default function ProTradingChart({
                 </button>
               );
             })}
+          </div>
+
+          <div className="h-5 w-px bg-border/60 mx-1 hidden sm:block" />
+
+          {/* Technical Drawing & Annotation Tools Dropdown */}
+          <div className="relative" ref={drawingMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsDrawingDropdownOpen(!isDrawingDropdownOpen)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl border text-xs font-medium transition-all ${
+                activeDrawingTool !== "cursor"
+                  ? "bg-brand text-white border-brand shadow-sm"
+                  : isDrawingDropdownOpen
+                  ? "bg-surface-3 text-text-primary border-border"
+                  : "bg-surface-2/80 text-text-muted hover:text-text-primary border-border/60 hover:bg-surface-3"
+              }`}
+              title="Chart Analysis & Drawing Tools (Pencil, Line, Rectangle)"
+            >
+              {activeDrawingTool === "cursor" && <MousePointer className="h-3.5 w-3.5 text-text-muted" />}
+              {activeDrawingTool === "pencil" && <Pencil className="h-3.5 w-3.5" />}
+              {activeDrawingTool === "line" && <Minus className="h-3.5 w-3.5 stroke-[3]" />}
+              {activeDrawingTool === "rect" && <Square className="h-3.5 w-3.5" />}
+              
+              <span>
+                {activeDrawingTool === "cursor" && "Draw Tools"}
+                {activeDrawingTool === "pencil" && "Pencil"}
+                {activeDrawingTool === "line" && "Line"}
+                {activeDrawingTool === "rect" && "Rectangle"}
+              </span>
+              <ChevronDown className={`h-3 w-3 transition-transform ${isDrawingDropdownOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {/* Dropdown Menu Modal */}
+            {isDrawingDropdownOpen && (
+              <div className="absolute left-0 top-full mt-2 w-64 bg-[#111622] border border-border/80 rounded-2xl shadow-2xl p-3 z-50 backdrop-blur-md">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-text-muted px-1.5 pb-2 font-bold flex items-center justify-between border-b border-border/50">
+                  <span>Investor Drawing Tools</span>
+                  {drawings.length > 0 && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-surface-3 text-brand font-bold">
+                      {drawings.length} mark{drawings.length > 1 ? "s" : ""}
+                    </span>
+                  )}
+                </div>
+
+                {/* Tool Selection Buttons */}
+                <div className="space-y-1 py-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDrawingTool("cursor");
+                      setIsDrawingDropdownOpen(false);
+                    }}
+                    className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                      activeDrawingTool === "cursor"
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <MousePointer className="h-3.5 w-3.5" />
+                      <span>Cursor / Pan & Zoom</span>
+                    </div>
+                    <span className="text-[10px] opacity-75 font-mono">Normal</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDrawingTool("pencil");
+                      setIsDrawingDropdownOpen(false);
+                    }}
+                    className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                      activeDrawingTool === "pencil"
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Pencil className="h-3.5 w-3.5" />
+                      <span>Pencil (Freehand)</span>
+                    </div>
+                    <span className="text-[10px] opacity-75 font-mono">Sketch</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDrawingTool("line");
+                      setIsDrawingDropdownOpen(false);
+                    }}
+                    className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                      activeDrawingTool === "line"
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Minus className="h-3.5 w-3.5 stroke-[3]" />
+                      <span>Line (Trendline / Ray)</span>
+                    </div>
+                    <span className="text-[10px] opacity-75 font-mono">Ray</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveDrawingTool("rect");
+                      setIsDrawingDropdownOpen(false);
+                    }}
+                    className={`flex items-center justify-between w-full px-2.5 py-1.5 rounded-xl text-xs font-medium transition-colors ${
+                      activeDrawingTool === "rect"
+                        ? "bg-brand text-white shadow-sm"
+                        : "text-text-secondary hover:text-text-primary hover:bg-surface-2"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Square className="h-3.5 w-3.5" />
+                      <span>Square / Rectangle</span>
+                    </div>
+                    <span className="text-[10px] opacity-75 font-mono">Zone</span>
+                  </button>
+                </div>
+
+                {/* Color Selector */}
+                <div className="border-t border-border/50 pt-2.5">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-text-muted px-1.5 mb-1.5 flex items-center justify-between">
+                    <span>Stroke Color</span>
+                    <span className="h-2 w-2 rounded-full ring-1 ring-white/50" style={{ backgroundColor: drawingColor }} />
+                  </div>
+                  <div className="flex items-center justify-between px-2 py-1.5 bg-surface-2/60 rounded-xl">
+                    {[
+                      { color: "#22c55e", label: "Green" },
+                      { color: "#06b6d4", label: "Cyan" },
+                      { color: "#eab308", label: "Yellow" },
+                      { color: "#f43f5e", label: "Red" },
+                      { color: "#a855f7", label: "Purple" },
+                      { color: "#ffffff", label: "White" },
+                    ].map((c) => (
+                      <button
+                        key={c.color}
+                        type="button"
+                        onClick={() => setDrawingColor(c.color)}
+                        className={`h-5 w-5 rounded-full transition-transform ${
+                          drawingColor === c.color ? "scale-125 ring-2 ring-white/80 shadow-md" : "hover:scale-110 opacity-70"
+                        }`}
+                        style={{ backgroundColor: c.color }}
+                        title={c.label}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Stroke Width Selector */}
+                <div className="border-t border-border/50 pt-2.5 mt-2">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-text-muted px-1.5 mb-1.5">
+                    Line Width
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {[
+                      { width: 1.5, label: "Fine" },
+                      { width: 2.5, label: "Medium" },
+                      { width: 4.5, label: "Bold" },
+                    ].map((w) => (
+                      <button
+                        key={w.width}
+                        type="button"
+                        onClick={() => setDrawingWidth(w.width)}
+                        className={`py-1 rounded-lg text-[11px] font-mono text-center transition-colors ${
+                          drawingWidth === w.width
+                            ? "bg-brand/20 text-brand font-bold border border-brand/40"
+                            : "text-text-muted hover:text-text-primary hover:bg-surface-2"
+                        }`}
+                      >
+                        {w.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Actions: Undo & Clear */}
+                <div className="border-t border-border/50 pt-2.5 mt-2.5 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrawings((prev) => prev.slice(0, -1));
+                    }}
+                    disabled={drawings.length === 0}
+                    className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[11px] font-medium bg-surface-2 hover:bg-surface-3 text-text-secondary hover:text-text-primary disabled:opacity-40 disabled:cursor-not-allowed border border-border/60 transition-colors"
+                  >
+                    <Undo2 className="h-3 w-3" />
+                    <span>Undo</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDrawings([]);
+                    }}
+                    disabled={drawings.length === 0}
+                    className="flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-xl text-[11px] font-medium bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 disabled:opacity-40 disabled:cursor-not-allowed border border-rose-500/20 transition-colors"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    <span>Clear All</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -694,6 +1160,70 @@ export default function ProTradingChart({
           </div>
         ) : null}
         <div ref={containerRef} className="w-full h-full" />
+
+        {/* Interactive Drawing Overlay Canvas */}
+        <canvas
+          ref={drawingCanvasRef}
+          onMouseDown={handleCanvasMouseDown}
+          onMouseMove={handleCanvasMouseMove}
+          onMouseUp={handleCanvasMouseUp}
+          onMouseLeave={handleCanvasMouseUp}
+          className={`absolute inset-0 z-10 ${
+            activeDrawingTool === "cursor" ? "pointer-events-none" : "pointer-events-auto cursor-crosshair"
+          }`}
+        />
+
+        {/* Floating Active Drawing Mode Bar */}
+        {activeDrawingTool !== "cursor" && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-[#111622]/95 border border-brand/50 rounded-full px-4 py-1.5 shadow-2xl backdrop-blur-md">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
+            </span>
+            <div className="flex items-center gap-1.5 text-xs font-mono font-medium text-white">
+              <span className="text-text-muted">Drawing:</span>
+              <span className="text-brand font-bold uppercase tracking-wider">
+                {activeDrawingTool === "pencil" && "Pencil"}
+                {activeDrawingTool === "line" && "Line"}
+                {activeDrawingTool === "rect" && "Rectangle"}
+              </span>
+            </div>
+            <div className="h-3.5 w-px bg-border/80" />
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-text-muted">Color:</span>
+              <span className="h-3 w-3 rounded-full border border-white/40" style={{ backgroundColor: drawingColor }} />
+            </div>
+            <div className="h-3.5 w-px bg-border/80" />
+            <button
+              type="button"
+              onClick={() => setDrawings((prev) => prev.slice(0, -1))}
+              disabled={drawings.length === 0}
+              className="text-text-muted hover:text-text-primary disabled:opacity-30 p-1 transition-colors"
+              title="Undo last mark"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setDrawings([])}
+              disabled={drawings.length === 0}
+              className="text-text-muted hover:text-rose-400 disabled:opacity-30 p-1 transition-colors"
+              title="Clear all drawings"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+            <div className="h-3.5 w-px bg-border/80" />
+            <button
+              type="button"
+              onClick={() => setActiveDrawingTool("cursor")}
+              className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-brand/20 hover:bg-brand/30 border border-brand/40 text-[11px] text-brand font-medium transition-colors"
+              title="Exit Drawing Mode to Normal Cursor"
+            >
+              <MousePointer className="h-3 w-3" />
+              <span>Done (Cursor)</span>
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

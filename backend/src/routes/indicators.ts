@@ -11,7 +11,7 @@ const router = Router();
 const symbolSchema = z.string().min(1).max(32);
 
 const indicatorQuerySchema = z.object({
-  interval: z.enum(["1d", "1wk", "1mo", "1h", "30m", "15m", "5m", "1m"]).default("1d"),
+  interval: z.enum(["1d", "1wk", "1mo", "1h", "30m", "15m", "5m", "1m", "1y", "5y", "all"]).default("1d"),
   from: z.string().optional().transform((v) => (v ? new Date(v) : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000))),
   to: z.string().optional().transform((v) => (v ? new Date(v) : new Date())),
   indicators: z.string().optional().default("sma_20,sma_50,sma_200,ema_12,ema_26,rsi_14,macd,bb"),

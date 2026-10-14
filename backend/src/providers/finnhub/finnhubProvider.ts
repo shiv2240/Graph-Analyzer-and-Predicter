@@ -160,6 +160,9 @@ export class FinnhubProvider implements MarketDataProvider {
       "1d": "D",
       "1wk": "W",
       "1mo": "M",
+      "1y": "D",
+      "5y": "W",
+      "all": "M",
     };
     return map[interval] ?? "D";
   }

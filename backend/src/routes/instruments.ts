@@ -20,7 +20,7 @@ const symbolSchema = z
 
 const candleQuerySchema = z.object({
   interval: z
-    .enum(["1d", "1wk", "1mo", "1h", "30m", "15m", "5m", "1m"])
+    .enum(["1d", "1wk", "1mo", "1h", "30m", "15m", "5m", "1m", "1y", "5y", "all"])
     .default("1d"),
   from: z
     .string()

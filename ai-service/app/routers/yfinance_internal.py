@@ -206,7 +206,13 @@ def get_candles(
         # 15m, 30m: max 60 days, default period="30d"
         # 1h: max 730 days, default period="90d"
         now = datetime.utcnow()
-        if yf_interval == "1m":
+        if interval == "1y":
+            hist = t.history(period="1y", interval="1d")
+        elif interval == "5y":
+            hist = t.history(period="5y", interval="1wk")
+        elif interval in ["all", "max"]:
+            hist = t.history(period="max", interval="1mo")
+        elif yf_interval == "1m":
             hist = t.history(period="2d", interval="1m")
         elif yf_interval == "5m":
             hist = t.history(period="5d", interval="5m")
