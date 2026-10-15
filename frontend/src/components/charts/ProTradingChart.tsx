@@ -243,29 +243,41 @@ export default function ProTradingChart({
     renderCanvasDrawings(ctx, canvas.width, canvas.height, drawings, inProgressDrawing);
   }, [drawings, inProgressDrawing]);
 
-  // Sync canvas dimensions with parent element
+  const drawingsRef = useRef(drawings);
+  drawingsRef.current = drawings;
+  const inProgressDrawingRef = useRef(inProgressDrawing);
+  inProgressDrawingRef.current = inProgressDrawing;
+
+  // Sync canvas dimensions with parent element (RAF debounced, mounted once)
   useEffect(() => {
     const canvas = drawingCanvasRef.current;
     if (!canvas || !canvas.parentElement) return;
 
+    let resizeRaf: number | null = null;
     const resizeCanvas = () => {
-      const parent = canvas.parentElement;
-      if (!parent) return;
-      if (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight) {
-        canvas.width = parent.clientWidth;
-        canvas.height = parent.clientHeight;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          renderCanvasDrawings(ctx, canvas.width, canvas.height, drawings, inProgressDrawing);
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      resizeRaf = requestAnimationFrame(() => {
+        const parent = canvas.parentElement;
+        if (!parent) return;
+        if (canvas.width !== parent.clientWidth || canvas.height !== parent.clientHeight) {
+          canvas.width = parent.clientWidth;
+          canvas.height = parent.clientHeight;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            renderCanvasDrawings(ctx, canvas.width, canvas.height, drawingsRef.current, inProgressDrawingRef.current);
+          }
         }
-      }
+      });
     };
 
     resizeCanvas();
     const observer = new ResizeObserver(resizeCanvas);
     observer.observe(canvas.parentElement);
-    return () => observer.disconnect();
-  }, [drawings, inProgressDrawing]);
+    return () => {
+      if (resizeRaf) cancelAnimationFrame(resizeRaf);
+      observer.disconnect();
+    };
+  }, []);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -453,40 +465,40 @@ export default function ProTradingChart({
 
     const chart = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#0B0E14" },
-        textColor: "#8A94A6",
+        background: { type: ColorType.Solid, color: "#000000" },
+        textColor: "#a1a1aa",
         fontSize: 11,
         fontFamily: "'JetBrains Mono', 'Inter', monospace",
       },
       grid: {
-        vertLines: { color: "rgba(255, 255, 255, 0.04)" },
-        horzLines: { color: "rgba(255, 255, 255, 0.04)" },
+        vertLines: { color: "rgba(255, 255, 255, 0.03)" },
+        horzLines: { color: "rgba(255, 255, 255, 0.03)" },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
         vertLine: {
-          color: "#3B82F6",
+          color: "#D4F938",
           width: 1,
           style: 3,
-          labelBackgroundColor: "#1E293B",
+          labelBackgroundColor: "#18181b",
         },
         horzLine: {
-          color: "#3B82F6",
+          color: "#D4F938",
           width: 1,
           style: 3,
-          labelBackgroundColor: "#1E293B",
+          labelBackgroundColor: "#18181b",
         },
       },
       rightPriceScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
-        textColor: "#94A3B8",
+        borderColor: "rgba(255, 255, 255, 0.08)",
+        textColor: "#a1a1aa",
         scaleMargins: {
           top: 0.12,
           bottom: 0.22,
         },
       },
       timeScale: {
-        borderColor: "rgba(255, 255, 255, 0.1)",
+        borderColor: "rgba(255, 255, 255, 0.08)",
         timeVisible: true,
         secondsVisible: interval.includes("m"),
       },
@@ -554,49 +566,70 @@ export default function ProTradingChart({
       crosshairMarkerVisible: false,
     });
 
-    // Crosshair move handler for live HUD
+    // Crosshair move handler throttled with RAF (zero UI lag)
+    let crosshairRaf: number | null = null;
     chart.subscribeCrosshairMove((param) => {
-      if (!param.time || !param.seriesData) {
-        setHudData(null);
-        return;
-      }
-      const data = mainSeriesRef.current ? (param.seriesData.get(mainSeriesRef.current) as any) : null;
-      if (data) {
-        const o = data.open ?? data.value;
-        const c = data.close ?? data.value;
-        const h = data.high ?? Math.max(o, c);
-        const l = data.low ?? Math.min(o, c);
-        const change = o ? ((c - o) / o) * 100 : 0;
-        const vol = volumeSeriesRef.current ? ((param.seriesData.get(volumeSeriesRef.current) as any)?.value || 0) : 0;
-
-        let dateStr = "";
-        if (typeof param.time === "number") {
-          dateStr = new Date(param.time * 1000).toLocaleString();
-        } else if (typeof param.time === "object") {
-          dateStr = `${(param.time as any).year}-${(param.time as any).month}-${(param.time as any).day}`;
+      if (crosshairRaf) cancelAnimationFrame(crosshairRaf);
+      crosshairRaf = requestAnimationFrame(() => {
+        if (!param.time || !param.seriesData) {
+          setHudData(null);
+          return;
         }
+        const data = mainSeriesRef.current ? (param.seriesData.get(mainSeriesRef.current) as any) : null;
+        if (data) {
+          const o = data.open ?? data.value;
+          const c = data.close ?? data.value;
+          const h = data.high ?? Math.max(o, c);
+          const l = data.low ?? Math.min(o, c);
+          const change = o ? ((c - o) / o) * 100 : 0;
+          const vol = volumeSeriesRef.current ? ((param.seriesData.get(volumeSeriesRef.current) as any)?.value || 0) : 0;
 
-        setHudData({
-          time: dateStr,
-          open: o,
-          high: h,
-          low: l,
-          close: c,
-          volume: vol,
-          changePct: change,
-        });
-      }
+          let dateStr = "";
+          if (typeof param.time === "number") {
+            dateStr = new Date(param.time * 1000).toLocaleString();
+          } else if (typeof param.time === "object") {
+            dateStr = `${(param.time as any).year}-${(param.time as any).month}-${(param.time as any).day}`;
+          }
+
+          setHudData({
+            time: dateStr,
+            open: o,
+            high: h,
+            low: l,
+            close: c,
+            volume: vol,
+            changePct: change,
+          });
+        }
+      });
     });
 
-    // Resize observer
+    // Hardware-accelerated smooth chart ResizeObserver with RAF debouncing
+    let chartResizeRaf: number | null = null;
+    let lastWidth = 0;
+    let lastHeight = 0;
     const resizeObserver = new ResizeObserver((entries) => {
       if (!entries || entries.length === 0) return;
       const { width, height } = entries[0].contentRect;
-      chart.applyOptions({ width, height });
+      const roundedW = Math.floor(width);
+      const roundedH = Math.floor(height);
+      if (roundedW <= 0 || roundedH <= 0) return;
+      if (roundedW === lastWidth && roundedH === lastHeight) return;
+      lastWidth = roundedW;
+      lastHeight = roundedH;
+
+      if (chartResizeRaf) cancelAnimationFrame(chartResizeRaf);
+      chartResizeRaf = requestAnimationFrame(() => {
+        if (chartRef.current) {
+          chartRef.current.applyOptions({ width: roundedW, height: roundedH });
+        }
+      });
     });
     resizeObserver.observe(containerRef.current);
 
     return () => {
+      if (crosshairRaf) cancelAnimationFrame(crosshairRaf);
+      if (chartResizeRaf) cancelAnimationFrame(chartResizeRaf);
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -663,6 +696,7 @@ export default function ProTradingChart({
           processedData.sorted.map((c) => ({ time: c.time, value: c.close }))
         );
       }
+      chart.timeScale().fitContent();
     }
   }, [chartType, processedData]);
 
@@ -749,9 +783,9 @@ export default function ProTradingChart({
   };
 
   return (
-    <div className={`flex flex-col bg-[#0B0E14] border border-border/80 rounded-2xl overflow-hidden shadow-2xl ${className}`}>
+    <div className={`flex flex-col bg-black border border-white/[0.08] rounded-2xl overflow-hidden shadow-glass ${className}`}>
       {/* ── Top Professional Trading Toolbar ─────────────────────────────────── */}
-      <div className="p-3 bg-[#111622] border-b border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs">
+      <div className="p-3 bg-black/60 backdrop-blur-xl border-b border-white/[0.08] flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Left: Timeframe Intervals & Chart Type & Live Stream Status */}
         <div className="flex items-center gap-2 flex-wrap">
           {/* Live Market / Exchange Status Badge */}
@@ -784,9 +818,9 @@ export default function ProTradingChart({
             </span>
             <span className="text-[10px] font-mono font-bold tracking-wider uppercase">
               {streamSource === "binance_ws"
-                ? "LIVE BINANCE 24/7"
+                ? "MARKET OPEN (24/7)"
                 : isMarketActive
-                ? "EXCHANGE ACTIVE"
+                ? "MARKET OPEN"
                 : "MARKET CLOSED"}
             </span>
             {currentTick && (
@@ -1119,6 +1153,24 @@ export default function ProTradingChart({
             </button>
           )}
 
+          {/* 🟢/🔴 Right-side Market Status Tag */}
+          <div
+            className="flex items-center"
+            title={streamSource === "binance_ws" ? "24/7 Global Trading" : isMarketActive ? "Regular Exchange Session Active" : "Regular Exchange Session Closed"}
+          >
+            {streamSource === "binance_ws" || isMarketActive ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.15)]">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                Market Open
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+                Market Closed
+              </span>
+            )}
+          </div>
+
           {/* Reset Zoom */}
           <button
             type="button"
@@ -1132,7 +1184,7 @@ export default function ProTradingChart({
       </div>
 
       {/* ── Live Crosshair HUD (OHLCV Legend) ─────────────────────────────────── */}
-      <div className="px-4 py-2 bg-[#0E131E] border-b border-border/40 flex flex-wrap items-center justify-between text-xs font-mono gap-2 text-text-muted">
+      <div className="px-4 py-2 bg-black/50 backdrop-blur-md border-b border-white/[0.06] flex flex-wrap items-center justify-between text-xs font-mono gap-2 text-zinc-400">
         <div className="flex items-center gap-3">
           <span className="text-text-primary font-bold">{symbol}</span>
           <span className="text-[11px] px-1.5 py-0.5 rounded bg-surface-3 text-text-secondary uppercase">
@@ -1212,10 +1264,10 @@ export default function ProTradingChart({
 
         {/* Floating Active Drawing Mode Bar */}
         {activeDrawingTool !== "cursor" && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-[#111622]/95 border border-brand/50 rounded-full px-4 py-1.5 shadow-2xl backdrop-blur-md">
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2.5 bg-black/90 border border-[#D4F938]/50 rounded-full px-4 py-1.5 shadow-[0_0_20px_rgba(212,249,56,0.15)] backdrop-blur-xl">
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D4F938] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#D4F938]"></span>
             </span>
             <div className="flex items-center gap-1.5 text-xs font-mono font-medium text-white">
               <span className="text-text-muted">Drawing:</span>

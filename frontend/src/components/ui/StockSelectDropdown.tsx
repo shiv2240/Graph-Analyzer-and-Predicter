@@ -136,15 +136,13 @@ export default function StockSelectDropdown({
     staleTime: 60000,
   });
 
-  // Filtered local list
+  // Filtered list: Merges POPULAR_INSTRUMENTS with dynamic server search results
   const filteredList = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q && activeTab === "all") return POPULAR_INSTRUMENTS;
-
     const tokens = q.split(/[\s/,-]+/).filter(Boolean);
 
-    return POPULAR_INSTRUMENTS.filter((item) => {
-      // Tab filter
+    // 1. Filter local popular catalog
+    const localFiltered = POPULAR_INSTRUMENTS.filter((item) => {
       if (activeTab !== "all" && item.category !== activeTab) {
         return false;
       }
@@ -154,13 +152,52 @@ export default function StockSelectDropdown({
       const inName = item.name.toLowerCase().includes(q);
       const inExchange = item.exchange.toLowerCase().includes(q);
       const inKeywords = item.keywords?.some((k) => k.toLowerCase().includes(q)) ?? false;
-
       const allSearchable = `${item.symbol} ${item.name} ${item.exchange} ${item.keywords?.join(" ") || ""}`.toLowerCase();
       const inTokens = tokens.length > 0 && tokens.every((tok) => allSearchable.includes(tok));
 
       return inSymbol || inName || inExchange || inKeywords || inTokens;
     });
-  }, [searchTerm, activeTab]);
+
+    if (!q || !serverSearchResults || serverSearchResults.length === 0) {
+      return localFiltered;
+    }
+
+    // 2. Map server results into StockOption format and merge
+    const seenSymbols = new Set(localFiltered.map((i) => i.symbol.toUpperCase()));
+    const serverMapped: StockOption[] = [];
+
+    for (const s of serverSearchResults) {
+      const symUpper = s.symbol.toUpperCase();
+      if (seenSymbols.has(symUpper)) continue;
+      seenSymbols.add(symUpper);
+
+      let cat: "all" | "india" | "us" | "commodity" | "index" | "crypto" = "us";
+      if (symUpper.endsWith(".NS") || symUpper.endsWith(".BO") || s.exchange === "NSE" || s.exchange === "BSE") {
+        cat = "india";
+      } else if (symUpper.includes("=F") || s.instrumentType?.toUpperCase().includes("COMMODITY")) {
+        cat = "commodity";
+      } else if (symUpper.includes("-USD") || symUpper.includes("-INR") || s.exchange === "CRYPTO") {
+        cat = "crypto";
+      } else if (symUpper.startsWith("^") || s.instrumentType?.toUpperCase() === "INDEX") {
+        cat = "index";
+      }
+
+      if (activeTab !== "all" && cat !== activeTab) {
+        continue;
+      }
+
+      serverMapped.push({
+        symbol: s.symbol,
+        name: s.name || s.symbol,
+        exchange: s.exchange || (s.currency === "INR" ? "NSE" : "US"),
+        category: cat,
+        type: s.instrumentType || "Equity",
+        currency: (s.currency === "INR" ? "INR" : "USD") as "INR" | "USD",
+      });
+    }
+
+    return [...localFiltered, ...serverMapped];
+  }, [searchTerm, activeTab, serverSearchResults]);
 
   const handleSelect = (symbol: string) => {
     onChange(symbol);

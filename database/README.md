@@ -1,6 +1,6 @@
 # 🗄️ PostgreSQL Database & Migrations (`database`)
 
-This directory contains the database initialization scripts and sequential schema migrations for the **Stock Intelligence AI & Graph Analyzer** platform.
+This directory contains the database initialization scripts, table definitions, and sequential schema migrations for the **Stock Intelligence AI & Graph Analyzer** platform, with native support for local PostgreSQL and cloud-hosted **Neon DB**.
 
 ---
 
@@ -11,7 +11,10 @@ This directory contains the database initialization scripts and sequential schem
    - All timestamps are stored in UTC using `TIMESTAMPTZ` (ISO 8601 strings in application layers).
 2. **Time-Series Indexing:**
    - Composite indexes on `(instrument_id, interval, ts DESC)` ensure sub-10ms queries for multi-timeframe candle lookups and backtesting.
-3. **Idempotent Sequential Migrations:**
+3. **Machine Learning Model Versioning:**
+   - The `ml_models` table records every trained model run, architecture type (`xgboost`, `rf`, `logistic`, `baseline`), training date ranges, and verified out-of-sample metrics (`accuracy`, `precision`, `recall`, `f1`, `auc_roc`, `brier_score`).
+   - The `ml_predictions` table stores out-of-sample predictions and directional accuracy records.
+4. **Idempotent Sequential Migrations:**
    - Numbered sequentially (`0001_...` through `0011_...`).
    - Run tracked in a `schema_migrations` table to guarantee safe, repeatable deployment.
 
@@ -59,24 +62,15 @@ If running via Docker:
 docker compose exec backend npm run db:migrate
 ```
 
-### Method 3: Manual Execution using `psql`
+### Method 3: Cloud Neon DB Deployment
 
+Provide your cloud database connection string in `.env`:
+```env
+DATABASE_URL=postgresql://user:password@ep-xyz.us-east-2.aws.neon.tech/stockintel?sslmode=require
+```
+Then execute:
 ```bash
-# Connect to PostgreSQL
-psql -U stockintel -d stockintel -h localhost -p 5432
-
-# Execute migrations in order:
-\i database/migrations/0001_create_exchanges.sql
-\i database/migrations/0002_create_instruments.sql
-\i database/migrations/0003_create_candles.sql
-\i database/migrations/0004_create_quotes.sql
-\i database/migrations/0005_create_indicator_snapshots.sql
-\i database/migrations/0006_create_news_articles.sql
-\i database/migrations/0007_create_ml_models_predictions.sql
-\i database/migrations/0008_create_research_reports.sql
-\i database/migrations/0009_create_portfolio.sql
-\i database/migrations/0010_create_backtests.sql
-\i database/migrations/0011_seed_exchanges.sql
+npm run db:migrate
 ```
 
 ---

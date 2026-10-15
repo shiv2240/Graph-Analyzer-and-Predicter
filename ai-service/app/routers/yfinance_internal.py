@@ -50,6 +50,9 @@ SYMBOL_ALIASES = {
     "ETH/USD": "ETH-USD",
     "SOL": "SOL-USD",
     "SOLANA": "SOL-USD",
+    "TATAMOTORS.NS": "TMPV.NS",
+    "TATAMOTORS": "TMPV.NS",
+    "TATAMOTORS.BO": "TMPV.NS",
 }
 
 def resolve_symbol(symbol: str) -> str:
@@ -157,24 +160,55 @@ def search(q: str = Query(...), exchange: Optional[str] = Query(None)):
         elif query_tokens and all(tok in target_text for tok in query_tokens):
             results.append(item)
 
-    # 3. If nothing matched in static list, query yfinance ticker directly
-    if not results and len(query) >= 2:
+    # 3. Dynamic Universal Search across Yahoo Finance Global Database (NSE, BSE, US, EU, Commodities, Crypto)
+    if len(query) >= 2:
         try:
-            target_query = resolved_alias if resolved_alias else query
-            t = yf.Ticker(target_query)
-            info = t.info
-            if info and ("shortName" in info or "regularMarketPrice" in info):
-                curr = info.get("currency", "USD")
-                exch = "NSE" if target_query.endswith(".NS") else ("BSE" if target_query.endswith(".BO") else "US")
-                results.append({
-                    "symbol": target_query,
-                    "name": info.get("shortName", target_query),
-                    "exchange": exch,
-                    "instrument_type": "EQUITY",
-                    "currency": curr,
-                })
+            import urllib.request, urllib.parse, json
+            search_query = resolved_alias if resolved_alias else query
+            url = f"https://query2.finance.yahoo.com/v1/finance/search?q={urllib.parse.quote(search_query)}&quotesCount=20&newsCount=0"
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(req, timeout=3) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for q_item in data.get("quotes", []):
+                    sym = q_item.get("symbol", "").upper()
+                    if not sym or any(r["symbol"] == sym for r in results):
+                        continue
+                    name = q_item.get("shortname") or q_item.get("longname") or sym
+                    raw_exch = q_item.get("exchDisp") or q_item.get("exchange") or ""
+
+                    # Normalize exchange and currency
+                    if sym.endswith(".NS"):
+                        exch = "NSE"
+                        curr = "INR"
+                    elif sym.endswith(".BO"):
+                        exch = "BSE"
+                        curr = "INR"
+                    elif "=F" in sym:
+                        exch = "COMEX"
+                        curr = "USD"
+                    elif "-USD" in sym or "-INR" in sym:
+                        exch = "CRYPTO"
+                        curr = "USD" if "-USD" in sym else "INR"
+                    elif "NAS" in raw_exch.upper():
+                        exch = "NASDAQ"
+                        curr = "USD"
+                    elif "NY" in raw_exch.upper():
+                        exch = "NYSE"
+                        curr = "USD"
+                    else:
+                        exch = raw_exch if raw_exch else "GLOBAL"
+                        curr = "USD"
+
+                    quote_type = q_item.get("quoteType", "EQUITY")
+                    results.append({
+                        "symbol": sym,
+                        "name": name,
+                        "exchange": exch,
+                        "instrument_type": quote_type,
+                        "currency": curr,
+                    })
         except Exception as e:
-            logger.debug(f"yfinance dynamic search failed for {query}: {e}")
+            logger.debug(f"Direct Yahoo search lookup failed for {query}: {e}")
 
     return {"results": results, "count": len(results)}
 
@@ -235,8 +269,33 @@ def get_candles(
             empty_res = {"candles": [], "symbol": symbol, "interval": interval}
             return empty_res
 
+        # Drop rows with NaN in Open or Close
+        hist = hist.dropna(subset=["Open", "Close"])
+        if hist.empty:
+            return {"candles": [], "symbol": symbol, "interval": interval}
+
         candles = []
         for index, row in hist.iterrows():
+            o = row.get("Open")
+            c = row.get("Close")
+            if pd.isna(o) or pd.isna(c) or np.isinf(o) or np.isinf(c):
+                continue
+
+            h = row.get("High")
+            l = row.get("Low")
+            if pd.isna(h) or np.isinf(h):
+                h = max(float(o), float(c))
+            if pd.isna(l) or np.isinf(l):
+                l = min(float(o), float(c))
+
+            vol = row.get("Volume", 0)
+            if pd.isna(vol) or np.isinf(vol):
+                vol = 0
+
+            adj = row.get("Adj Close", c)
+            if pd.isna(adj) or np.isinf(adj):
+                adj = c
+
             try:
                 if hasattr(index, "tz_convert"):
                     ts_iso = index.tz_convert("UTC").strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -249,12 +308,12 @@ def get_candles(
 
             candles.append({
                 "ts": ts_iso,
-                "open": round(float(row["Open"]), 4),
-                "high": round(float(row["High"]), 4),
-                "low": round(float(row["Low"]), 4),
-                "close": round(float(row["Close"]), 4),
-                "volume": int(row["Volume"]),
-                "adj_close": round(float(row.get("Adj Close", row["Close"])), 4),
+                "open": round(float(o), 4),
+                "high": round(float(h), 4),
+                "low": round(float(l), 4),
+                "close": round(float(c), 4),
+                "volume": int(float(vol)),
+                "adj_close": round(float(adj), 4),
             })
 
         result = {

@@ -18,18 +18,39 @@ const symbolSchema = z
   .max(32)
   .regex(/^[\w^.=\/-]+$/, "Invalid symbol format");
 
-const candleQuerySchema = z.object({
-  interval: z
-    .enum(["1d", "1wk", "1mo", "1h", "30m", "15m", "5m", "1m", "1y", "5y", "all"])
-    .default("1d"),
-  from: z
-    .string()
-    .optional()
-    .transform((v) =>
-      v ? new Date(v) : new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
-    ),
-  to: z.string().optional().transform((v) => (v ? new Date(v) : new Date())),
-});
+const candleQuerySchema = z
+  .object({
+    interval: z
+      .enum(["1d", "1wk", "1mo", "1h", "30m", "15m", "5m", "1m", "1y", "5y", "all"])
+      .default("1d"),
+    from: z.string().optional(),
+    to: z.string().optional(),
+  })
+  .transform((data) => {
+    const toDate = data.to ? new Date(data.to) : new Date();
+    let fromDate: Date;
+    if (data.from) {
+      fromDate = new Date(data.from);
+    } else {
+      const now = Date.now();
+      if (data.interval === "1m") {
+        fromDate = new Date(now - 2 * 24 * 60 * 60 * 1000);
+      } else if (["5m", "15m", "30m"].includes(data.interval)) {
+        fromDate = new Date(now - 7 * 24 * 60 * 60 * 1000);
+      } else if (data.interval === "1h") {
+        fromDate = new Date(now - 60 * 24 * 60 * 60 * 1000);
+      } else if (["1y", "5y", "all"].includes(data.interval)) {
+        fromDate = new Date(now - 10 * 365 * 24 * 60 * 60 * 1000);
+      } else {
+        fromDate = new Date(now - 365 * 24 * 60 * 60 * 1000);
+      }
+    }
+    return {
+      interval: data.interval,
+      from: fromDate,
+      to: toDate,
+    };
+  });
 
 const searchQuerySchema = z.object({
   q: z.string().min(1).max(100),
@@ -241,9 +262,40 @@ async function persistCandles(
     "SELECT id FROM instruments WHERE symbol = $1 LIMIT 1",
     [symbol]
   );
-  if (!instrument.length) return; // Not yet persisted; skip
+  let instrumentId: number;
+  if (!instrument.length) {
+    let exchangeCode = 'NYSE';
+    let currency = 'USD';
+    let instType = 'EQUITY';
+    if (symbol.endsWith('.NS')) {
+      exchangeCode = 'NSE';
+      currency = 'INR';
+    } else if (symbol.endsWith('.BO')) {
+      exchangeCode = 'BSE';
+      currency = 'INR';
+    } else if (symbol.includes('=F')) {
+      exchangeCode = 'COMEX';
+      instType = 'COMMODITY';
+    } else if (symbol.includes('-USD')) {
+      exchangeCode = 'CRYPTO';
+      instType = 'CRYPTO';
+    }
+    
+    const ex = await query<{ id: number }>("SELECT id FROM exchanges WHERE code = $1 LIMIT 1", [exchangeCode]);
+    const exchangeId = ex.length ? ex[0].id : 3;
 
-  const instrumentId = instrument[0].id;
+    const created = await query<{ id: number }>(
+      `INSERT INTO instruments (symbol, name, exchange_id, instrument_type, currency)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (symbol, exchange_id) DO UPDATE SET is_active = true
+       RETURNING id`,
+      [symbol, symbol, exchangeId, instType, currency]
+    );
+    if (!created.length) return;
+    instrumentId = created[0].id;
+  } else {
+    instrumentId = instrument[0].id;
+  }
   for (const c of candles) {
     await query(
       `INSERT INTO candles (instrument_id, interval, ts, open, high, low, close, volume, adj_close, source)

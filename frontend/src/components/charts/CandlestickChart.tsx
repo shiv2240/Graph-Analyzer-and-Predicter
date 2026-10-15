@@ -44,26 +44,26 @@ export default function CandlestickChart({
 
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#161b22" },
-        textColor: "#7d8590",
+        background: { type: ColorType.Solid, color: "#000000" },
+        textColor: "#a1a1aa",
         fontSize: 11,
         fontFamily: "'JetBrains Mono', monospace",
       },
       grid: {
-        vertLines: { color: "#21262d" },
-        horzLines: { color: "#21262d" },
+        vertLines: { color: "rgba(255, 255, 255, 0.03)" },
+        horzLines: { color: "rgba(255, 255, 255, 0.03)" },
       },
       crosshair: {
         mode: CrosshairMode.Normal,
-        vertLine: { color: "#4493f8", labelBackgroundColor: "#4493f8" },
-        horzLine: { color: "#4493f8", labelBackgroundColor: "#4493f8" },
+        vertLine: { color: "#D4F938", labelBackgroundColor: "#18181b" },
+        horzLine: { color: "#D4F938", labelBackgroundColor: "#18181b" },
       },
       rightPriceScale: {
-        borderColor: "#30363d",
-        textColor: "#7d8590",
+        borderColor: "rgba(255, 255, 255, 0.08)",
+        textColor: "#a1a1aa",
       },
       timeScale: {
-        borderColor: "#30363d",
+        borderColor: "rgba(255, 255, 255, 0.08)",
         timeVisible: true,
         secondsVisible: false,
       },
@@ -72,17 +72,17 @@ export default function CandlestickChart({
     });
 
     const candleSeries = chart.addCandlestickSeries({
-      upColor: "#3fb950",
-      downColor: "#f85149",
-      borderUpColor: "#3fb950",
-      borderDownColor: "#f85149",
-      wickUpColor: "#3fb950",
-      wickDownColor: "#f85149",
+      upColor: "#10b981",
+      downColor: "#ef4444",
+      borderUpColor: "#10b981",
+      borderDownColor: "#ef4444",
+      wickUpColor: "#10b981",
+      wickDownColor: "#ef4444",
     });
 
     // Volume histogram in lower panel
     const volumeSeries = chart.addHistogramSeries({
-      color: "#4493f820",
+      color: "rgba(59, 130, 246, 0.25)",
       priceFormat: { type: "volume" },
       priceScaleId: "volume",
     });
@@ -94,15 +94,26 @@ export default function CandlestickChart({
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
 
-    // Resize observer
+    // Hardware-accelerated smooth chart resize observer with RAF debouncing
+    let chartResizeRaf: number | null = null;
+    let lastWidth = 0;
     const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        chart.applyOptions({ width: entry.contentRect.width });
-      }
+      if (!entries || entries.length === 0) return;
+      const roundedW = Math.floor(entries[0].contentRect.width);
+      if (roundedW <= 0 || roundedW === lastWidth) return;
+      lastWidth = roundedW;
+
+      if (chartResizeRaf) cancelAnimationFrame(chartResizeRaf);
+      chartResizeRaf = requestAnimationFrame(() => {
+        if (chartRef.current) {
+          chartRef.current.applyOptions({ width: roundedW });
+        }
+      });
     });
     resizeObserver.observe(chartContainerRef.current);
 
     return () => {
+      if (chartResizeRaf) cancelAnimationFrame(chartResizeRaf);
       resizeObserver.disconnect();
       chart.remove();
       chartRef.current = null;

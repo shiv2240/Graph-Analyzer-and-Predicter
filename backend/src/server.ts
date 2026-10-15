@@ -41,12 +41,17 @@ setInterval(() => {
   io.emit("heartbeat", { ts: new Date().toISOString() });
 }, 30_000);
 
+import { startDailyTrainingScheduler } from "./services/dailyTrainingScheduler";
+import { initBackgroundTrainingService } from "./services/backgroundTrainingService";
+
 // ─── Start ────────────────────────────────────────────────────────────────
 httpServer.listen(config.BACKEND_PORT, config.BACKEND_HOST, () => {
   logger.info(
     { port: config.BACKEND_PORT, host: config.BACKEND_HOST, env: config.NODE_ENV },
     "Stock Intelligence API server started"
   );
+  startDailyTrainingScheduler();
+  initBackgroundTrainingService();
 });
 
 // ─── Graceful shutdown ────────────────────────────────────────────────────

@@ -474,7 +474,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Connecting Wave SVG Path */}
-            <svg className="absolute inset-0 w-full h-full p-4 pointer-events-none" preserveAspectRatio="none">
+            <svg className="absolute inset-0 w-full h-full p-4 pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
                 <linearGradient id="waveGlow" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stopColor="#F59E0B" stopOpacity="0.3" />
@@ -485,10 +485,10 @@ export default function DashboardPage() {
               <polyline
                 fill="none"
                 stroke="#F59E0B"
-                strokeWidth="2"
-                strokeDasharray="4 4"
-                opacity="0.4"
-                points={WAVE_CHART_NODES.map((n, i) => `${(i / (WAVE_CHART_NODES.length - 1)) * 90 + 3}%,${100 - n.heightPct}%`).join(" ")}
+                strokeWidth="1.5"
+                strokeDasharray="3 3"
+                opacity="0.5"
+                points={WAVE_CHART_NODES.map((n, i) => `${((i / (WAVE_CHART_NODES.length - 1)) * 94 + 3).toFixed(2)},${(100 - n.heightPct).toFixed(2)}`).join(" ")}
               />
             </svg>
 

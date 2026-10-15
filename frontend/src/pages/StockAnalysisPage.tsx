@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -24,6 +24,7 @@ import {
   fetchNews,
   fetchCandles,
 } from "../services/marketData";
+import { getMarketStatus } from "../services/liveStreamService";
 import ProTradingChart from "../components/charts/ProTradingChart";
 import AICopilotPanel from "../components/ui/AICopilotPanel";
 import CandleDataTableModal from "../components/ui/CandleDataTableModal";
@@ -53,6 +54,13 @@ export default function StockAnalysisPage() {
     queryKey: ["candles", symbol, interval],
     queryFn: () => fetchCandles(symbol, interval),
     refetchInterval: interval.includes("m") ? 15000 : 60000,
+    placeholderData: (previousData, previousQuery) => {
+      // Only keep previous data when toggling intervals for the same symbol
+      if (previousQuery?.queryKey[1] === symbol) {
+        return previousData;
+      }
+      return undefined;
+    },
   });
 
   const { data: indicatorsData, refetch: refetchIndicators, isFetching: isIndicatorsFetching } = useQuery({
@@ -90,6 +98,8 @@ export default function StockAnalysisPage() {
   const prevClose = quote?.prevClose ?? (quote as any)?.prev_close ?? rawPrice;
   const isPos = changePct >= 0;
 
+  const marketStatus = useMemo(() => getMarketStatus(symbol), [symbol]);
+
   return (
     <div className="space-y-5 max-w-[1720px] mx-auto pb-10">
       {/* ── Top Header & Global Asset Selector ───────────────────────────────── */}
@@ -123,6 +133,24 @@ export default function StockAnalysisPage() {
 
         {/* Right side shortcuts */}
         <div className="flex items-center gap-3 shrink-0">
+          {/* 🟢/🔴 Market Status Tag */}
+          <div
+            className="flex items-center shrink-0 cursor-default"
+            title={marketStatus.sessionDetails}
+          >
+            {marketStatus.isOpen ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 shadow-[0_0_12px_rgba(16,185,129,0.2)]">
+                <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                Market Open
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-rose-500/15 text-rose-400 border border-rose-500/30">
+                <span className="h-2 w-2 rounded-full bg-rose-500" />
+                Market Closed
+              </span>
+            )}
+          </div>
+
           {quote && (
             <div className="text-right hidden sm:block font-mono shrink-0 whitespace-nowrap">
               <div className="text-base font-extrabold text-text-primary">
@@ -162,39 +190,39 @@ export default function StockAnalysisPage() {
 
       {/* ── Key Real-time Metrics Bar ────────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3 text-xs">
-        <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
-          <span className="text-[11px] text-text-muted block">Day High</span>
-          <span className="font-bold font-mono text-positive text-sm mt-0.5 block">
+        <div className="glass-tile p-3 rounded-xl border border-white/[0.08]">
+          <span className="text-[11px] text-zinc-400 block">Day High</span>
+          <span className="font-bold font-mono text-emerald-400 text-sm mt-0.5 block">
             {dayHigh !== undefined && dayHigh !== null ? `${currSym}${Number(dayHigh).toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
-          <span className="text-[11px] text-text-muted block">Day Low</span>
-          <span className="font-bold font-mono text-negative text-sm mt-0.5 block">
+        <div className="glass-tile p-3 rounded-xl border border-white/[0.08]">
+          <span className="text-[11px] text-zinc-400 block">Day Low</span>
+          <span className="font-bold font-mono text-rose-400 text-sm mt-0.5 block">
             {dayLow !== undefined && dayLow !== null ? `${currSym}${Number(dayLow).toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
-          <span className="text-[11px] text-text-muted block">Prev. Close</span>
-          <span className="font-bold font-mono text-text-primary text-sm mt-0.5 block">
+        <div className="glass-tile p-3 rounded-xl border border-white/[0.08]">
+          <span className="text-[11px] text-zinc-400 block">Prev. Close</span>
+          <span className="font-bold font-mono text-white text-sm mt-0.5 block">
             {prevClose !== undefined && prevClose !== null ? `${currSym}${Number(prevClose).toFixed(2)}` : "—"}
           </span>
         </div>
-        <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
-          <span className="text-[11px] text-text-muted block">24H Volume</span>
-          <span className="font-bold font-mono text-text-primary text-sm mt-0.5 block">
+        <div className="glass-tile p-3 rounded-xl border border-white/[0.08]">
+          <span className="text-[11px] text-zinc-400 block">24H Volume</span>
+          <span className="font-bold font-mono text-white text-sm mt-0.5 block">
             {quote?.volume ? quote.volume.toLocaleString() : "—"}
           </span>
         </div>
-        <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
-          <span className="text-[11px] text-text-muted block">RSI (14) Momentum</span>
-          <span className="font-bold font-mono text-brand text-sm mt-0.5 block">
+        <div className="glass-tile p-3 rounded-xl border border-white/[0.08]">
+          <span className="text-[11px] text-zinc-400 block">RSI (14) Momentum</span>
+          <span className="font-bold font-mono text-[#D4F938] text-sm mt-0.5 block">
             {indicators?.rsi?.["14"] ? Number(indicators.rsi["14"]).toFixed(1) : "52.4"}
           </span>
         </div>
-        <div className="card p-3 rounded-xl bg-surface-1/70 border border-border/70">
-          <span className="text-[11px] text-text-muted block">Realized Volatility</span>
-          <span className="font-bold font-mono text-text-secondary text-sm mt-0.5 block">
+        <div className="glass-tile p-3 rounded-xl border border-white/[0.08]">
+          <span className="text-[11px] text-zinc-400 block">Realized Volatility</span>
+          <span className="font-bold font-mono text-zinc-300 text-sm mt-0.5 block">
             {indicators?.volatility_21d ? `${(indicators.volatility_21d * 100).toFixed(1)}%` : "14.2%"}
           </span>
         </div>
@@ -205,6 +233,7 @@ export default function StockAnalysisPage() {
         {/* Left Column (8 Cols): Pro Chart Canvas & Oscillators */}
         <div className="xl:col-span-8 space-y-4">
           <ProTradingChart
+            key={symbol}
             candles={candles}
             symbol={symbol}
             interval={interval}
@@ -216,25 +245,25 @@ export default function StockAnalysisPage() {
           {/* Sub-Panels: RSI and MACD */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* RSI Subpanel */}
-            <div className="card p-4 rounded-xl bg-surface-1/70 border border-border/70 space-y-2">
+            <div className="glass-tile p-4 rounded-xl border border-white/[0.08] space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-text-primary flex items-center gap-1.5">
-                  <BarChart2 className="h-4 w-4 text-brand" />
+                <span className="font-bold text-white flex items-center gap-1.5">
+                  <BarChart2 className="h-4 w-4 text-[#D4F938]" />
                   RSI (14) Momentum Oscillator
                 </span>
-                <span className="font-mono text-sm font-bold text-brand">
+                <span className="font-mono text-sm font-bold text-[#D4F938]">
                   {indicators?.rsi?.["14"] ? indicators.rsi["14"].toFixed(1) : "52.4"}
                 </span>
               </div>
-              <div className="relative h-4 bg-surface-2 rounded-full overflow-hidden border border-border/60">
-                <div className="absolute left-[30%] h-full w-px bg-positive/60" title="Oversold (30)" />
-                <div className="absolute left-[70%] h-full w-px bg-negative/60" title="Overbought (70)" />
+              <div className="relative h-3 bg-white/[0.05] rounded-full overflow-hidden border border-white/[0.08]">
+                <div className="absolute left-[30%] h-full w-px bg-emerald-400/60" title="Oversold (30)" />
+                <div className="absolute left-[70%] h-full w-px bg-rose-400/60" title="Overbought (70)" />
                 <div
-                  className="h-full bg-gradient-to-r from-positive via-brand to-negative transition-all duration-500 rounded-full"
+                  className="h-full bg-gradient-to-r from-emerald-500 via-[#D4F938] to-rose-500 transition-all duration-500 rounded-full"
                   style={{ width: `${Math.min(100, Math.max(0, indicators?.rsi?.["14"] ?? 52.4))}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[10px] font-mono text-text-muted">
+              <div className="flex justify-between text-[10px] font-mono text-zinc-500">
                 <span>30 (Oversold)</span>
                 <span>50 (Equilibrium)</span>
                 <span>70 (Overbought)</span>
@@ -242,13 +271,13 @@ export default function StockAnalysisPage() {
             </div>
 
             {/* MACD Subpanel */}
-            <div className="card p-4 rounded-xl bg-surface-1/70 border border-border/70 space-y-2">
+            <div className="glass-tile p-4 rounded-xl border border-white/[0.08] space-y-2">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-text-primary flex items-center gap-1.5">
-                  <Activity className="h-4 w-4 text-brand" />
+                <span className="font-bold text-white flex items-center gap-1.5">
+                  <Activity className="h-4 w-4 text-[#D4F938]" />
                   MACD (12, 26, 9)
                 </span>
-                <span className="font-mono text-xs font-bold text-text-primary">
+                <span className="font-mono text-xs font-bold text-white">
                   Hist: {indicators?.macd?.histogram ? indicators.macd.histogram.toFixed(2) : "+1.85"}
                 </span>
               </div>

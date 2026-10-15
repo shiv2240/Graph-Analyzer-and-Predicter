@@ -44,6 +44,27 @@ const BINANCE_INTERVAL_MAP: Record<string, string> = {
   "1mo": "1M",
 };
 
+function safeCloseWebSocket(ws: WebSocket | null) {
+  if (!ws) return;
+  // Clear handlers immediately so no events bubble up after unmount/cleanup
+  ws.onopen = null;
+  ws.onmessage = null;
+  ws.onerror = null;
+  ws.onclose = null;
+
+  try {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.close();
+    } else if (ws.readyState === WebSocket.CONNECTING) {
+      ws.onopen = () => {
+        try {
+          ws.close();
+        } catch (_) {}
+      };
+    }
+  } catch (_) {}
+}
+
 export function useLiveMarketStream({
   symbol,
   interval = "1m",
@@ -62,11 +83,20 @@ export function useLiveMarketStream({
   const lastCandleRef = useRef<LiveMarketTick | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const tickSimulatorTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const onTickRef = useRef(onTick);
+  onTickRef.current = onTick;
+
+  // Reset tick state immediately when symbol changes to prevent tick cross-contamination
+  useEffect(() => {
+    lastCandleRef.current = null;
+    setCurrentTick(null);
+  }, [symbol]);
 
   // Sync latest candle from historical data
+  const candleCount = initialCandles?.length || 0;
+  const lastClose = candleCount > 0 ? initialCandles[candleCount - 1]?.close : null;
   useEffect(() => {
-    if (initialCandles.length > 0) {
+    if (initialCandles && initialCandles.length > 0) {
       const last = initialCandles[initialCandles.length - 1];
       const timeSec = Math.floor(new Date(last.ts).getTime() / 1000);
       const chg = last.open ? ((last.close - last.open) / last.open) * 100 : 0;
@@ -84,22 +114,20 @@ export function useLiveMarketStream({
       lastCandleRef.current = tick;
       setCurrentTick(tick);
     }
-  }, [initialCandles]);
+  }, [symbol, candleCount, lastClose]);
 
   // Connect to live market stream
   useEffect(() => {
-    // Clean up previous connections
+    let isCancelled = false;
+
+    // Clean up previous connections safely
     if (wsRef.current) {
-      wsRef.current.close();
+      safeCloseWebSocket(wsRef.current);
       wsRef.current = null;
     }
     if (pollTimerRef.current) {
       clearInterval(pollTimerRef.current);
       pollTimerRef.current = null;
-    }
-    if (tickSimulatorTimerRef.current) {
-      clearInterval(tickSimulatorTimerRef.current);
-      tickSimulatorTimerRef.current = null;
     }
 
     const cleanSymbol = symbol.trim().toUpperCase();
@@ -115,11 +143,16 @@ export function useLiveMarketStream({
         wsRef.current = ws;
 
         ws.onopen = () => {
+          if (isCancelled) {
+            safeCloseWebSocket(ws);
+            return;
+          }
           setIsLive(true);
           setStreamSource("binance_ws");
         };
 
         ws.onmessage = (event) => {
+          if (isCancelled) return;
           try {
             const data = JSON.parse(event.data);
             if (data.e === "kline" && data.k) {
@@ -146,7 +179,7 @@ export function useLiveMarketStream({
 
               lastCandleRef.current = tick;
               setCurrentTick(tick);
-              if (onTick) onTick(tick);
+              if (onTickRef.current) onTickRef.current(tick);
             }
           } catch (err) {
             console.error("Binance WS message parse error:", err);
@@ -154,15 +187,18 @@ export function useLiveMarketStream({
         };
 
         ws.onerror = () => {
+          if (isCancelled) return;
           setIsLive(false);
-          setStreamSource("realtime_poll");
+          setStreamSource("market_data");
         };
 
         ws.onclose = () => {
+          if (isCancelled) return;
           setIsLive(false);
         };
       } catch (err) {
         console.error("Failed to connect to Binance WebSocket:", err);
+        setStreamSource("market_data");
       }
     } else {
       // ── 2. EQUITIES, COMMODITIES, FOREX: Real Exchange Data Mode ─────────
@@ -176,11 +212,17 @@ export function useLiveMarketStream({
     }
 
     return () => {
-      if (wsRef.current) wsRef.current.close();
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      if (tickSimulatorTimerRef.current) clearInterval(tickSimulatorTimerRef.current);
+      isCancelled = true;
+      if (wsRef.current) {
+        safeCloseWebSocket(wsRef.current);
+        wsRef.current = null;
+      }
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
     };
-  }, [symbol, interval, onTick]);
+  }, [symbol, interval]);
 
   return {
     currentTick,
@@ -217,4 +259,41 @@ export function isMarketOpen(symbol: string): boolean {
   // Default to US equities (NASDAQ/NYSE): 09:30 to 16:00 EST (13:30 to 20:00 UTC)
   const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
   return utcMinutes >= 810 && utcMinutes <= 1200;
+}
+
+export function getMarketStatus(symbol: string): {
+  isOpen: boolean;
+  label: "Market Open" | "Market Closed";
+  sessionDetails: string;
+} {
+  const open = isMarketOpen(symbol);
+  const clean = symbol.trim().toUpperCase();
+
+  if (BINANCE_CRYPTO_MAP[clean] || clean.includes("BTC") || clean.includes("ETH") || clean.includes("SOL")) {
+    return {
+      isOpen: true,
+      label: "Market Open",
+      sessionDetails: "24/7 Global Trading Session",
+    };
+  }
+
+  const isIndia =
+    clean.endsWith(".NS") ||
+    clean.endsWith(".BO") ||
+    clean.startsWith("^NSE") ||
+    clean === "^BSESN";
+
+  if (isIndia) {
+    return {
+      isOpen: open,
+      label: open ? "Market Open" : "Market Closed",
+      sessionDetails: open ? "NSE/BSE Active (09:15 - 15:30 IST)" : "NSE/BSE Closed (Opens 09:15 IST)",
+    };
+  }
+
+  return {
+    isOpen: open,
+    label: open ? "Market Open" : "Market Closed",
+    sessionDetails: open ? "US Active (09:30 - 16:00 EST)" : "US Closed (Opens 09:30 EST)",
+  };
 }

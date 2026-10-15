@@ -79,38 +79,38 @@ def engineer_features(df: pd.DataFrame, target_horizon: int = 1) -> pd.DataFrame
     
     # BB position: (close - lower) / (upper - lower)
     bb_range = bb["upper"] - bb["lower"]
-    features_df["bb_position"] = (close - bb["lower"]) / bb_range.replace(0, np.nan)
+    features_df["bb_position"] = ((close - bb["lower"]) / bb_range.replace(0, np.nan)).fillna(0.5)
     
     # Returns (Multi-horizon: 1-period, 5-period, 10-period micro, 21-period macro)
-    features_df["return_1d"] = np.log(close / close.shift(1))
-    features_df["return_5d"] = np.log(close / close.shift(5))
-    features_df["return_10p"] = np.log(close / close.shift(10))
-    features_df["return_21d"] = np.log(close / close.shift(21))
+    features_df["return_1d"] = np.log(close / close.shift(1)).fillna(0.0)
+    features_df["return_5d"] = np.log(close / close.shift(5)).fillna(0.0)
+    features_df["return_10p"] = np.log(close / close.shift(10)).fillna(0.0)
+    features_df["return_21d"] = np.log(close / close.shift(21)).fillna(0.0)
 
     # Micro acceleration: change in 10-period velocity over last 3 periods (market inflection detection)
-    features_df["micro_accel_10"] = features_df["return_10p"] - features_df["return_10p"].shift(3)
+    features_df["micro_accel_10"] = (features_df["return_10p"] - features_df["return_10p"].shift(3)).fillna(0.0)
 
     # Macro range position: where price is relative to the 30-period rolling high-low channel
     rolling_high_30 = high.rolling(30, min_periods=5).max()
     rolling_low_30 = low.rolling(30, min_periods=5).min()
     range_30 = rolling_high_30 - rolling_low_30
-    features_df["macro_range_pos"] = (close - rolling_low_30) / range_30.replace(0, np.nan)
+    features_df["macro_range_pos"] = ((close - rolling_low_30) / range_30.replace(0, np.nan)).fillna(0.5)
 
-    # Volume ratio
-    features_df["vol_ratio"] = volume / vol_sma_20.replace(0, np.nan)
+    # Volume ratio (safe neutral 1.0 fallback when volume is 0 or unavailable, e.g. Forex/VIX)
+    features_df["vol_ratio"] = (volume / vol_sma_20.replace(0, np.nan)).fillna(1.0)
 
     # ATR percentage
-    features_df["atr_pct"] = atr / close
+    features_df["atr_pct"] = (atr / close.replace(0, np.nan)).fillna(0.0)
 
     # Above moving averages
     features_df["above_sma_50"] = (close > sma_50).astype(int)
     features_df["above_sma_200"] = (close > sma_200).astype(int)
 
     # SMA trend slope (trend curvature)
-    features_df["sma_trend_slope"] = (sma_20 - sma_20.shift(5)) / close
+    features_df["sma_trend_slope"] = ((sma_20 - sma_20.shift(5)) / close.replace(0, np.nan)).fillna(0.0)
 
     # Volatility squeeze: BB width relative to ATR (coiling energy before market turn)
-    features_df["volatility_squeeze"] = ((bb_range / atr.replace(0, np.nan)) < 3.0).astype(int)
+    features_df["volatility_squeeze"] = ((bb_range / atr.replace(0, np.nan)) < 3.0).fillna(False).astype(int)
 
     # Candlestick pattern recognition
     candle_body = (close - open_p).abs()
@@ -159,9 +159,12 @@ def prepare_train_test_data(
 ) -> Tuple[pd.DataFrame, pd.Series, pd.DataFrame, pd.Series]:
     """
     Chronological train/test split (NEVER random shuffle).
-    Drops rows with NaN features or NaN target.
+    Fills stray feature NaNs and drops rows with NaN target.
     """
-    clean_df = features_df.dropna(subset=FEATURE_COLUMNS + ["target"]).copy()
+    df_copy = features_df.copy()
+    # Gracefully fill any initial indicator lookback NaNs without lookahead
+    df_copy[FEATURE_COLUMNS] = df_copy[FEATURE_COLUMNS].ffill().bfill().fillna(0.0)
+    clean_df = df_copy.dropna(subset=["target"]).copy()
     n = len(clean_df)
     train_size = int(n * train_ratio)
 

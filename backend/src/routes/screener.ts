@@ -1,9 +1,7 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
-import axios from "axios";
 import { providerRegistry } from "../providers/registry";
 import { cache } from "../cache/cacheService";
-import { config } from "../config";
 import { logger } from "../utils/logger";
 
 const router = Router();

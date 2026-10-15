@@ -1,6 +1,6 @@
 # 🖥️ Backend API Gateway (`backend`)
 
-The **Backend Service** is a TypeScript and Node.js REST API gateway built with **Express**, **Zod**, and **PostgreSQL**. It coordinates market data providers, manages caching tiers, exposes institutional REST endpoints to the frontend, and proxies requests to the Python AI service.
+The **Backend Service** is a TypeScript and Node.js REST API gateway built with **Express**, **Zod**, and **PostgreSQL** (with Neon cloud DB support). It coordinates market data providers, manages caching tiers, exposes institutional REST endpoints to the frontend, orchestrates machine learning model registries, and proxies requests to the Python AI service.
 
 ---
 
@@ -12,22 +12,30 @@ The **Backend Service** is a TypeScript and Node.js REST API gateway built with 
    - Normalized quote response standardizing data engine keys into camelCase interfaces (`changePct`, `changeAbs`, `dayHigh`, `dayLow`, `prevClose`) with full fallback support.
    - Graceful fallback and health status monitoring.
 
-2. **Expanded Quantitative Screener & Multi-Timeframe Engine (`src/routes/`):**
-   - **`screener.ts`:** Powers multi-market screening over 95+ Indian (NIFTY 50) and US equities with live search, country/exchange filtering, sorting, and pagination.
-   - **`indicators.ts` & `instruments.ts`:** Full multi-timeframe candle and technical indicator support across `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`, `1mo`, `1y` (1 Year daily), `5y` (5 Year weekly), and `all` (All-Time monthly) with provider resolution routing.
+2. **Multi-Timeframe Confluence Engine (`src/routes/analysis.ts`):**
+   - Endpoint: `GET /api/v1/analysis/:symbol/multi-timeframe`
+   - Sequential candle ingestion across 7 timeframes (`1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk`).
+   - Calculates moving average alignment (SMA 20, 50), RSI(14) momentum, and directional bias per timeframe.
+   - Computes **Yesterday's Session Benchmark** (Date, Open, High, Low, Close, Volume, and Floor Pivots $P, R_1, R_2, S_1, S_2$).
+   - Returns master verdict, strategy advice, confluence score, and execution boundaries with 60-second in-memory endpoint caching.
 
-3. **Multi-Tier Intelligent Caching (`src/cache/cacheService.ts`):**
+3. **Machine Learning Model Registry & Retraining (`src/routes/ml.ts`):**
+   - **`GET /api/v1/ml/models`:** Returns available model architectures with complete feature metadata and historical trained model records stored in Neon DB (`ml_models` and `ml_predictions`).
+   - **`POST /api/v1/ml/train`:** Executes model training pipeline with chronological walk-forward splitting and persists weights/metrics in PostgreSQL.
+   - **`GET /api/v1/ml/predict/:symbol`:** Computes dynamic directional forecast on live market candles.
+   - **`POST /api/v1/ml/daily-schedule/trigger` & `/training-job`:** Background retraining scheduler for automated daily incremental model retraining.
+
+4. **Expanded Quantitative Screener (`src/routes/screener.ts`):**
+   - Powers multi-market screening over 95+ Indian (NIFTY 50) and US equities with live search, country/exchange filtering, sorting, and pagination.
+
+5. **Multi-Tier Intelligent Caching (`src/cache/cacheService.ts`):**
    - **L1 Cache:** In-memory NodeCache for sub-millisecond local responses.
    - **L2 Cache:** Distributed Redis cache (with seamless fallback to L1 if Redis is offline).
-   - **Data vs. Analysis Separation:** Caches raw candle graph data and provider responses while bypassing stale caches for AI analysis so predictions always adapt to graph changes.
+   - **Data vs. Analysis Separation:** Caches raw candle graph data and provider responses while keeping AI predictions adaptive to live market shifts.
 
-4. **Database & Persistence (`src/db/`):**
-   - PostgreSQL connection pool using `pg`.
-   - Sequential schema migrations for instruments, candles, quotes, portfolios, and backtest results.
-
-5. **Input Validation & Security (`src/middleware/`):**
-   - Strict Zod schemas validating all incoming query parameters and request bodies.
-   - Centralized error handling and structured JSON logging with Pino.
+6. **Database & Persistence (`src/db/`):**
+   - PostgreSQL / Neon connection pool using `pg`.
+   - Sequential schema migrations for instruments, candles, quotes, portfolios, ML models, and backtest results.
 
 ---
 
@@ -47,16 +55,19 @@ backend/
 │   │   ├── upstox/              # Indian market Upstox v2 integration
 │   │   └── yfinance/            # Internal AI-service Yahoo Finance proxy
 │   ├── routes/                  # Express REST routes
-│   │   ├── analysis.py          # AI equity research report route (always fresh)
+│   │   ├── analysis.ts          # Multi-timeframe confluence & equity research reports
 │   │   ├── backtest.ts          # Strategy backtesting endpoints
 │   │   ├── health.ts            # System health checks
 │   │   ├── indicators.ts        # Indicator calculation proxy
 │   │   ├── indices.ts           # Global indices snapshot
 │   │   ├── instruments.ts       # Search, quote, and candle retrieval
-│   │   ├── ml.ts                # Machine learning prediction proxy
+│   │   ├── ml.ts                # ML model registry, prediction, and daily training
 │   │   ├── news.ts              # Financial news feed
 │   │   ├── portfolio.ts         # Mock paper portfolio management
 │   │   └── screener.ts          # Asset screener filters
+│   ├── services/                # Background training and scheduler services
+│   │   ├── backgroundTrainingService.ts # Worker thread / job tracking for training
+│   │   └── dailyTrainingScheduler.ts    # Cron / daily incremental retraining
 │   ├── types/                   # TypeScript interfaces (Candle, Quote, Instrument)
 │   ├── utils/                   # Structured logger and helpers
 │   ├── app.ts                   # Express app configuration & middleware pipeline
@@ -83,7 +94,7 @@ npm install
 ```
 
 ### 2. Configure Environment Variables
-Ensure `.env` exists in the project root or `./backend/.env`. Key parameters:
+Ensure `.env` exists in the project root or `./backend/.env`:
 ```env
 PORT=3001
 AI_SERVICE_URL=http://localhost:8000
@@ -100,33 +111,5 @@ The server will start at `http://localhost:3001` with hot-reload enabled via `ts
 ### 4. Build for Production
 ```bash
 npm run build
+npm start
 ```
-Compiles TypeScript files into production-ready JavaScript in `./dist`.
-
----
-
-## 🧪 Testing & Database Migrations
-
-- **Run Tests:**
-  ```bash
-  npm test
-  ```
-- **Execute Database Migrations:**
-  ```bash
-  npm run db:migrate
-  ```
-
----
-
-## 📡 REST API Route Overview
-
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/health` | `GET` | Health check & provider connection statuses |
-| `/api/v1/instruments/search` | `GET` | Multi-asset search across NSE, BSE, US, and Crypto |
-| `/api/v1/instruments/:symbol/quote` | `GET` | Real-time quote data (price, change, volume) |
-| `/api/v1/instruments/:symbol/candles` | `GET` | Historical OHLCV bars (`1m` to `1mo`) |
-| `/api/v1/indicators/:symbol` | `GET` | Technical indicators (RSI, MACD, BBands) |
-| `/api/v1/analysis/report` | `POST` | Fresh AI equity research generation |
-| `/api/v1/screener` | `GET` | Multi-metric stock & asset filtering |
-| `/api/v1/portfolio` | `GET/POST` | Paper trading portfolio simulation |

@@ -224,3 +224,87 @@ export async function runBacktest(payload: {
   return data;
 }
 
+export async function fetchMLStatus() {
+  const { data } = await apiClient.get("/ml/status");
+  return data;
+}
+
+export async function trainAllModels(modelType = "xgboost") {
+  const { data } = await apiClient.post("/ml/train-all", { model_type: modelType });
+  return data;
+}
+
+export async function trainSingleModel(symbol: string, modelType = "xgboost") {
+  const { data } = await apiClient.post("/ml/train", { symbol, model_type: modelType });
+  return data;
+}
+
+export async function fetchTrainingJobStatus() {
+  const { data } = await apiClient.get("/ml/training-job");
+  return data;
+}
+
+export async function stopTrainingJob() {
+  const { data } = await apiClient.post("/ml/training-job/stop");
+  return data;
+}
+
+export async function toggleContinuousTraining(enabled: boolean, intervalMinutes = 60) {
+  const { data } = await apiClient.post("/ml/training-job/continuous", {
+    enabled,
+    interval_minutes: intervalMinutes,
+  });
+  return data;
+}
+
+export interface TimeframeSignal {
+  interval: string;
+  label: string;
+  signal: "BULLISH" | "BEARISH" | "NEUTRAL";
+  rsi: number;
+  trend: string;
+  changePct: number;
+  priceAboveSma20: boolean;
+  priceAboveSma50: boolean;
+  lastClose: number;
+  candleCount: number;
+}
+
+export interface YesterdayContext {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  changePct: number;
+  pivot: number;
+  r1: number;
+  r2: number;
+  s1: number;
+  s2: number;
+  positionVsYesterday: "ABOVE_HIGH" | "BELOW_LOW" | "INSIDE_RANGE";
+}
+
+export interface MultiTimeframeReport {
+  symbol: string;
+  currentPrice: number;
+  confluenceScore: number;
+  bullishCount: number;
+  bearishCount: number;
+  neutralCount: number;
+  totalTimeframes: number;
+  masterVerdict: "STRONG BUY" | "BUY" | "NEUTRAL / HOLD" | "SELL / TAKE PROFIT" | "STRONG SELL";
+  masterAction: string;
+  strategyAdvice: string;
+  timeframes: Record<string, TimeframeSignal>;
+  yesterday: YesterdayContext;
+  generatedAt: string;
+}
+
+export async function fetchMultiTimeframeAnalysis(symbol: string): Promise<MultiTimeframeReport> {
+  const { data } = await apiClient.get(`/analysis/${encodeURIComponent(symbol)}/multi-timeframe`);
+  return data;
+}
+
+

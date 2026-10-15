@@ -46,9 +46,22 @@ export interface Quote {
   dataQuality: DataQuality;
 }
 
+export type CandleInterval =
+  | "1d"
+  | "1wk"
+  | "1mo"
+  | "1h"
+  | "30m"
+  | "15m"
+  | "5m"
+  | "1m"
+  | "1y"
+  | "5y"
+  | "all";
+
 export interface CandleParams {
   symbol: string;
-  interval: "1d" | "1wk" | "1mo" | "1h" | "30m" | "15m" | "5m" | "1m";
+  interval: CandleInterval;
   from: Date;
   to: Date;
 }
