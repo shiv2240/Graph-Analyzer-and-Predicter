@@ -35,7 +35,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import type { CandleBar } from "../../services/marketData";
-import { useLiveMarketStream } from "../../services/liveStreamService";
+import { useLiveMarketStream, isMarketOpen } from "../../services/liveStreamService";
 
 export type ChartType = "candlestick" | "bar" | "area" | "line" | "baseline";
 export type DrawingTool = "cursor" | "pencil" | "line" | "rect";
@@ -174,6 +174,8 @@ export default function ProTradingChart({
     interval,
     initialCandles: candles,
   });
+
+  const isMarketActive = useMemo(() => isMarketOpen(symbol), [symbol]);
 
   // Crosshair HUD state
   const [hudData, setHudData] = useState<{
@@ -703,16 +705,22 @@ export default function ProTradingChart({
     if (!currentTick || !mainSeriesRef.current || processedData.sorted.length === 0) return;
 
     const lastCandle = processedData.sorted[processedData.sorted.length - 1];
-    const lastTime = lastCandle ? Number(lastCandle.time) : 0;
-    const tickTime = Math.max(Number(currentTick.time), lastTime);
+    if (!lastCandle) return;
+    const lastTime = Number(lastCandle.time);
+
+    // Only allow appending a brand new bar if it comes from an authentic 24/7 Binance WebSocket
+    // For traditional equities/commodities/forex, strictly update the latest candle in place
+    // to prevent artificial time gaps and floating disconnected candles
+    const isBinanceNew = currentTick.isNewCandle && streamSource === "binance_ws";
+    const tickTime = isBinanceNew ? currentTick.time : lastTime;
 
     try {
       if (chartType === "candlestick" || chartType === "bar") {
         mainSeriesRef.current.update({
           time: tickTime as any,
-          open: currentTick.open,
-          high: currentTick.high,
-          low: currentTick.low,
+          open: isBinanceNew ? currentTick.open : lastCandle.open,
+          high: isBinanceNew ? currentTick.high : Math.max(lastCandle.high, currentTick.high),
+          low: isBinanceNew ? currentTick.low : Math.min(lastCandle.low, currentTick.low),
           close: currentTick.close,
         });
       } else {
@@ -725,14 +733,16 @@ export default function ProTradingChart({
       if (volumeSeriesRef.current && showVolume) {
         volumeSeriesRef.current.update({
           time: tickTime as any,
-          value: currentTick.volume,
-          color: currentTick.close >= currentTick.open ? "rgba(16, 185, 129, 0.35)" : "rgba(239, 68, 68, 0.35)",
+          value: isBinanceNew ? currentTick.volume : Math.max(lastCandle.volume, currentTick.volume),
+          color: currentTick.close >= (isBinanceNew ? currentTick.open : lastCandle.open)
+            ? "rgba(16, 185, 129, 0.35)"
+            : "rgba(239, 68, 68, 0.35)",
         });
       }
     } catch (err) {
       console.debug("Live tick chart update skipped:", err);
     }
-  }, [currentTick, chartType, showVolume, processedData.sorted]);
+  }, [currentTick, chartType, showVolume, processedData.sorted, streamSource]);
 
   const handleFitContent = () => {
     chartRef.current?.timeScale().fitContent();
@@ -744,18 +754,45 @@ export default function ProTradingChart({
       <div className="p-3 bg-[#111622] border-b border-border/80 flex flex-wrap items-center justify-between gap-3 text-xs">
         {/* Left: Timeframe Intervals & Chart Type & Live Stream Status */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Live Market Pulsing Badge */}
-          <div className="flex items-center gap-2 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+          {/* Live Market / Exchange Status Badge */}
+          <div
+            className={`flex items-center gap-2 px-2.5 py-1 rounded-xl border transition-colors ${
+              streamSource === "binance_ws"
+                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                : isMarketActive
+                ? "bg-sky-500/10 border-sky-500/30 text-sky-400"
+                : "bg-surface-2 border-border/80 text-text-muted"
+            }`}
+          >
             <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              {streamSource === "binance_ws" || isMarketActive ? (
+                <>
+                  <span
+                    className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                      streamSource === "binance_ws" ? "bg-emerald-400" : "bg-sky-400"
+                    }`}
+                  ></span>
+                  <span
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      streamSource === "binance_ws" ? "bg-emerald-500" : "bg-sky-500"
+                    }`}
+                  ></span>
+                </>
+              ) : (
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-text-muted opacity-60"></span>
+              )}
             </span>
-            <span className="text-[10px] font-mono font-bold tracking-wider text-emerald-400 uppercase">
-              {streamSource === "binance_ws" ? "LIVE BINANCE 24/7" : "LIVE INTERBANK"}
+            <span className="text-[10px] font-mono font-bold tracking-wider uppercase">
+              {streamSource === "binance_ws"
+                ? "LIVE BINANCE 24/7"
+                : isMarketActive
+                ? "EXCHANGE ACTIVE"
+                : "MARKET CLOSED"}
             </span>
             {currentTick && (
               <span className="font-mono text-[11px] font-extrabold text-white ml-0.5">
-                {currency === "INR" || symbol.endsWith(".NS") || symbol.endsWith(".BO") ? "₹" : "$"}{currentTick.price.toFixed(currentTick.price < 10 ? 4 : 2)}
+                {currency === "INR" || symbol.endsWith(".NS") || symbol.endsWith(".BO") ? "₹" : "$"}
+                {currentTick.price.toFixed(currentTick.price < 10 ? 4 : 2)}
               </span>
             )}
           </div>

@@ -57,7 +57,7 @@ export function useLiveMarketStream({
 }) {
   const [currentTick, setCurrentTick] = useState<LiveMarketTick | null>(null);
   const [isLive, setIsLive] = useState(false);
-  const [streamSource, setStreamSource] = useState<"binance_ws" | "realtime_poll" | "offline">("offline");
+  const [streamSource, setStreamSource] = useState<"binance_ws" | "realtime_poll" | "market_data" | "offline">("offline");
 
   const lastCandleRef = useRef<LiveMarketTick | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
@@ -165,53 +165,14 @@ export function useLiveMarketStream({
         console.error("Failed to connect to Binance WebSocket:", err);
       }
     } else {
-      // ── 2. FOREX, COMMODITIES, EQUITIES: Live Micro-Tick Engine ────────
-      // For Gold (GC=F), Crude (CL=F), Forex (EURUSD=X) or Indian stocks:
-      setIsLive(true);
-      setStreamSource("realtime_poll");
+      // ── 2. EQUITIES, COMMODITIES, FOREX: Real Exchange Data Mode ─────────
+      // Rely on authentic exchange candle data without fabricating fake forward bars
+      setStreamSource("market_data");
+      setIsLive(false);
 
-      // High-resolution live tick simulator reflecting realistic interbank volatility
-      tickSimulatorTimerRef.current = setInterval(() => {
-        if (!lastCandleRef.current) return;
-
-        const prev = lastCandleRef.current;
-        const isForex = symbol.includes("=X");
-        const volatility = isForex ? prev.close * 0.0001 : prev.close * 0.0002;
-        const delta = (Math.random() - 0.495) * volatility;
-        const decimals = isForex ? 4 : (prev.close < 10 ? 4 : 2);
-        const newClose = Number((prev.close + delta).toFixed(decimals));
-        const newHigh = Math.max(prev.high, newClose);
-        const newLow = Math.min(prev.low, newClose);
-        const newVol = prev.volume + Math.floor(Math.random() * 8) + 1;
-
-        // Check if candle period elapsed based on interval
-        const nowSec = Math.floor(Date.now() / 1000);
-        let intervalSec = 60;
-        if (interval === "5m") intervalSec = 300;
-        else if (interval === "15m") intervalSec = 900;
-        else if (interval === "30m") intervalSec = 1800;
-        else if (interval === "1h") intervalSec = 3600;
-        else if (interval === "1d") intervalSec = 86400;
-
-        const candleStartTime = Math.floor(nowSec / intervalSec) * intervalSec;
-        const isNew = candleStartTime > prev.time;
-
-        const updatedTick: LiveMarketTick = {
-          time: isNew ? candleStartTime : prev.time,
-          open: isNew ? newClose : prev.open,
-          high: isNew ? newClose : newHigh,
-          low: isNew ? newClose : newLow,
-          close: newClose,
-          volume: isNew ? 1 : newVol,
-          price: newClose,
-          changePct: prev.open ? ((newClose - prev.open) / prev.open) * 100 : 0,
-          isNewCandle: isNew,
-        };
-
-        lastCandleRef.current = updatedTick;
-        setCurrentTick(updatedTick);
-        if (onTick) onTick(updatedTick);
-      }, 800);
+      if (lastCandleRef.current) {
+        setCurrentTick(lastCandleRef.current);
+      }
     }
 
     return () => {
@@ -226,4 +187,34 @@ export function useLiveMarketStream({
     isLive,
     streamSource,
   };
+}
+
+export function isMarketOpen(symbol: string): boolean {
+  const clean = symbol.trim().toUpperCase();
+  // Crypto is open 24/7
+  if (BINANCE_CRYPTO_MAP[clean] || clean.includes("BTC") || clean.includes("ETH") || clean.includes("SOL")) {
+    return true;
+  }
+
+  const now = new Date();
+  const utcDay = now.getUTCDay(); // 0 is Sunday, 6 is Saturday
+  if (utcDay === 0 || utcDay === 6) return false;
+
+  const isIndia =
+    clean.endsWith(".NS") ||
+    clean.endsWith(".BO") ||
+    clean.startsWith("^NSE") ||
+    clean === "^BSESN";
+
+  if (isIndia) {
+    // IST is UTC + 5:30.
+    const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+    const istMinutes = (utcMinutes + 330) % 1440;
+    // NSE market hours: 09:15 (555m) to 15:30 (930m)
+    return istMinutes >= 555 && istMinutes <= 930;
+  }
+
+  // Default to US equities (NASDAQ/NYSE): 09:30 to 16:00 EST (13:30 to 20:00 UTC)
+  const utcMinutes = now.getUTCHours() * 60 + now.getUTCMinutes();
+  return utcMinutes >= 810 && utcMinutes <= 1200;
 }
