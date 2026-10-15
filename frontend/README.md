@@ -43,8 +43,9 @@ The **Frontend Application** is an institutional-grade, responsive single-page w
    - **Strategy Backtester (`src/pages/BacktestPage.tsx`):** Backtest technical rules with equity curves, Sharpe ratios, and drawdowns.
    - **Model Evaluation (`src/pages/ModelEvalPage.tsx`):** Inspect real ML model performance metrics: **53.5%–58.2% directional accuracy**, confusion matrices, Brier loss, and ROC-AUC curves across all 4 architectures (XGBoost, Random Forest, Logistic Regression, Baseline).
 
-4. **Defensive Browser Extension Shielding (`src/main.tsx`):**
-   - Global `window.addEventListener("unhandledrejection")` and `window.addEventListener("error")` interceptors isolate and silence third-party browser extension noise (`content.js`, `polyfill.js`, `chrome-extension://`, `useCache`) so they never disrupt React error boundaries.
+4. **Defensive Error Shielding & Clean Teardown (`src/main.tsx` & `src/services/liveStreamService.ts`):**
+   - **Browser Extension Isolation:** Global `window.addEventListener("unhandledrejection")` and `window.addEventListener("error")` interceptors isolate and silence third-party browser extension noise (`content.js`, `polyfill.js`, `chrome-extension://`, `useCache`) so they never disrupt React error boundaries.
+   - **WebSocket Teardown Debouncing:** Connection establishment in `useLiveMarketStream` is debounced by 150ms to prevent React 18 StrictMode mount/unmount and rapid timeframe switch storms. Clean unmount codes (`1000 ("Clean unmount")`) and inert dummy handlers prevent `Ping received after close` race conditions.
 
 ---
 

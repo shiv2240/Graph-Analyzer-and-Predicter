@@ -20,6 +20,7 @@ This document serves as the formal repository log for all identified bugs, edge-
 | **ISSUE-010** | `frontend/pages/DashboardPage.tsx` | **Low** | SVG `<polyline>` error: `<polyline> attribute points: Expected number, "...%"`. | **Resolved** | Added `viewBox="0 0 100 100"` and normalized points to numeric scale |
 | **ISSUE-011** | `frontend/src/main.tsx` | **Low** | Third-party browser extension content scripts (`content.js`, `polyfill.js`, `useCache`) logged unhandled rejections | **Resolved** | Added global window unhandledrejection and error interceptors to cleanly silence extension noise |
 | **ISSUE-012** | `frontend/pages/ModelEvalPage.tsx` | **High** | `Uncaught TypeError: Cannot read properties of undefined (reading 'length')` on `/models` | **Resolved** | Added defensive `Array.isArray(m.features) && m.features.length > 0` guard and populated `features` array in backend route |
+| **ISSUE-013** | `frontend/services/liveStreamService.ts` | **Medium** | `WebSocket connection to ... failed: Ping received after close` during interval switch | **Resolved** | Added 150ms connection debounce timer, inert unmount handlers, and RFC 6455 code 1000 normal closure |
 
 ---
 
@@ -102,3 +103,68 @@ This document serves as the formal repository log for all identified bugs, edge-
      - Live overview: Models in Neon DB, Predictions Persisted, 20 Feature Vectors, XGBoost Architecture.
      - Full table of models with Test Accuracy %, F1-Score, ROC-AUC, and timestamps.
 * **Verification:** Verified in browser at `http://localhost:5173/settings` (screenshot `settings_ml_hub_1792063061038.png`).
+
+---
+
+### ISSUE-007: Multi-Timeframe Confluence & Session Benchmarking Engine
+* **Requirement:** AI model should evaluate market structure across `1m`, `5m`, `15m`, `30m`, `1h`, `1d`, `1wk` alongside yesterday's session benchmark (high, low, close, floor pivots) instead of predicting on an isolated single candle.
+* **Applied Fixture:**
+  1. Built `GET /api/v1/analysis/:symbol/multi-timeframe` in `backend/src/routes/analysis.ts` with sequential ingestion across all 7 intervals and Floor Pivot calculation ($P, R_1, R_2, S_1, S_2$).
+  2. Implemented 60-second in-memory endpoint caching (`analysis:mtf:${symbol}`) for sub-second responses.
+  3. Built the interactive Multi-Timeframe Radar and Yesterday's Benchmark Card in `frontend/src/components/ui/AICopilotPanel.tsx`.
+* **Verification:** Sub-second API response verified; Radar displays bullish/bearish alignment across all 7 horizons.
+
+---
+
+### ISSUE-008: Real-Time Market Session Open/Closed Badges
+* **Requirement:** Provide high-visibility "Market Open" / "Market Closed" badges on the right side of the screen.
+* **Applied Fixture:**
+  1. Built exchange session math in `frontend/src/services/liveStreamService.ts` for Indian exchanges (NSE/BSE: 09:15–15:30 IST), US exchanges (NYSE/NASDAQ: 09:30–16:00 ET), and 24/7 Crypto.
+  2. Integrated pulsating emerald badge ("Market Open") and rose pill ("Market Closed") in `ProTradingChart.tsx` toolbar and `StockAnalysisPage.tsx` header.
+* **Verification:** Crypto correctly displays pulsating emerald "Market Open" 24/7; Indian/US equities correctly display session boundaries.
+
+---
+
+### ISSUE-009: Missing `GET /api/v1/ml/models` Endpoint (404 Not Found)
+* **Reported Behavior:** Console logged 404 when navigating to `/models`.
+* **Root Cause:** Route had not been implemented on the Express gateway.
+* **Applied Fixture:** Implemented `GET /api/v1/ml/models` in `backend/src/routes/ml.ts` returning 4 model architectures (XGBoost, Random Forest, Logistic Regression, Baseline) and querying historical models from Neon DB.
+* **Verification:** Endpoint returns HTTP 200 OK with complete JSON array.
+
+---
+
+### ISSUE-010: SVG `<polyline>` Coordinate Parsing Error
+* **Reported Behavior:** Console warned: `<polyline> attribute points: Expected number, "...%"`.
+* **Root Cause:** Percentage strings were used inside the SVG points attribute on `DashboardPage.tsx`.
+* **Applied Fixture:** Added `viewBox="0 0 100 100"` and normalized points to numeric coordinates.
+* **Verification:** Error eliminated from console.
+
+---
+
+### ISSUE-011: Third-Party Browser Extension Script Errors
+* **Reported Behavior:** Console logged `Uncaught (in promise) TypeError: Cannot read properties of undefined (reading 'useCache') at me (content.js:18)` and `Could not establish connection. Receiving end does not exist. (polyfill.js:496)`.
+* **Root Cause:** Injected content scripts from user's installed browser extensions (crypto wallets, ad blockers) failed to contact their background workers.
+* **Applied Fixture:** Added global unhandled rejection and error interceptors in `frontend/src/main.tsx` to cleanly silence extension noise without affecting application state.
+* **Verification:** Verified clean console isolation.
+
+---
+
+### ISSUE-012: Model Architecture Card `m.features.length` TypeError
+* **Reported Behavior:** Console logged `Uncaught TypeError: Cannot read properties of undefined (reading 'length')` in `ModelEvalPage.tsx:214`.
+* **Root Cause:** Component accessed `m.features.length` when backend returned models without an explicit `features` array.
+* **Applied Fixture:**
+  1. Added defensive `Array.isArray(m.features) && m.features.length > 0` guard with safe fallbacks in `ModelEvalPage.tsx`.
+  2. Enriched backend `available_models` in `backend/src/routes/ml.ts` with all 20 engineered financial features.
+* **Verification:** `/models` renders all 4 model architecture cards and their feature tags cleanly.
+
+---
+
+### ISSUE-013: Binance WebSocket "Ping received after close" Race Condition
+* **Reported Behavior:** Console logged `WebSocket connection to 'wss://stream.binance.com:9443/ws/btcusdt@kline_5m' failed: Ping received after close`.
+* **Root Cause:** In React 18 StrictMode and fast interval switching, components unmount while the WebSocket is still in `CONNECTING` (0) state. Calling `ws.close()` on `onopen` created a race condition where Binance's initial ping packet arrived concurrently with the closing handshake.
+* **Applied Fixture:**
+  1. Added a 150ms connection debounce timer (`connectTimer`) in `useLiveMarketStream` in `frontend/src/services/liveStreamService.ts` to abort connection establishment on rapid unmount/remount cycles.
+  2. Enhanced `safeCloseWebSocket` to assign inert dummy callbacks and close with RFC 6455 code `1000 ("Clean unmount")`.
+  3. Added filter in `frontend/src/main.tsx` to prevent post-closure teardown messages from bubbling to window listeners.
+* **Verification:** Interval switches between 1m, 5m, 15m, and page navigations execute cleanly without WebSocket race errors.
+

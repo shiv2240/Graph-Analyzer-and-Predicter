@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import App from "./App";
 import "./index.css";
-// Filter out noise from browser extensions (e.g. crypto wallets, adblockers)
+// Filter out noise from browser extensions (e.g. crypto wallets, adblockers) and WebSocket teardown races
 if (typeof window !== "undefined") {
   window.addEventListener("unhandledrejection", (event) => {
     const reason = event.reason?.message || String(event.reason || "");
@@ -13,11 +13,13 @@ if (typeof window !== "undefined") {
       reason.includes("Could not establish connection") ||
       reason.includes("Receiving end does not exist") ||
       reason.includes("useCache") ||
+      reason.includes("Ping received after close") ||
+      reason.includes("WebSocket is closed before the connection is established") ||
       stack.includes("content.js") ||
       stack.includes("polyfill.js") ||
       stack.includes("chrome-extension://")
     ) {
-      event.preventDefault(); // Suppress extension uncaught rejection
+      event.preventDefault(); // Suppress extension & post-close unhandled rejection
     }
   });
 
@@ -29,7 +31,9 @@ if (typeof window !== "undefined") {
       filename.includes("polyfill.js") ||
       filename.includes("chrome-extension://") ||
       msg.includes("useCache") ||
-      msg.includes("Receiving end does not exist")
+      msg.includes("Receiving end does not exist") ||
+      msg.includes("Ping received after close") ||
+      msg.includes("WebSocket is closed before the connection is established")
     ) {
       event.preventDefault();
       event.stopPropagation();
