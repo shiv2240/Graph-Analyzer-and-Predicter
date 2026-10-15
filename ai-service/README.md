@@ -58,14 +58,36 @@ The system operates on an institutional two-stage quantitative architecture:
        └─> Outputs Buy/Sell Verdict, Optimal Entry, Targets, and Invalidation Stop Loss
 ```
 
-### 2. Multi-Timeframe Confluence Logic
+### 2. Multi-Timeframe Confluence: Why the AI Never Judges from a Single Candle
 
-The AI model does not look at the last minute in isolation. It analyzes market structure across 7 discrete time horizons plus the prior day's benchmark:
+A common misconception is that trading bots make decisions by looking exclusively at the last candle. In production algorithmic trading, judging from a single candle creates severe susceptibility to false breakouts, wick manipulation, and micro-noise.
 
-1. **Macro Foundation (`1w`, `1d`):** Identifies the secular multi-month regime and determines if the broader trend is bullish or bearish.
-2. **Session Anchor (`1h`, `30m`):** Identifies intra-day value areas, channel slopes, and volume nodes.
-3. **Execution Setup (`15m`, `5m`, `1m`):** Detects immediate momentum inflection, RSI divergences, and candlestick reversal triggers.
-4. **Yesterday's Session Benchmark:** Automatically anchors current price against Yesterday's High, Low, Close, and Floor Pivots ($P, R_1, S_1$). If the market is inside yesterday's range, the AI prioritizes range-bound trade execution between support and resistance boundaries.
+Instead, the AI executes a **hierarchical multi-dimensional synthesis**:
+
+```
+ ┌─────────────────────────────────────────────────────────────────────────────┐
+ │                         CONFLUENCE SYNTHESIS PIPELINE                       │
+ ├─────────────────────────────────────────────────────────────────────────────┤
+ │                                                                             │
+ │   1. Macro Secular Regime (1 Week: 100+ bars)    ──> Trend Direction        │
+ │   2. Intermediate Daily Trend (1 Day: 365 bars)   ──> Major SMA 50/200 & RSI │
+ │   3. Intraday Anchor (1 Hour & 30 Min: 2,000+ bars)──> S/R Value Areas      │
+ │   4. Yesterday's Benchmark (High, Low, Pivots)   ──> Institutional Bounds   │
+ │   5. 20 Rolling Indicators (Returns, Volatility)  ──> ML Probability         │
+ │                                   │                                         │
+ │                                   ▼                                         │
+ │   6. Latest Live Candle Tick ───────────────────────> Execution Trigger     │
+ │                                   │                                         │
+ │                                   ▼                                         │
+ │   FINAL VERDICT: [ STRONG BUY | BULLISH LEAN | NEUTRAL | BEARISH | SELL ]   │
+ └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Macro Foundation (`1w`, `1d`):** 100+ weekly candles (~2 years) and 365 daily candles establish secular market drift, institutional moving averages (SMA 50, SMA 200), and macro support/resistance channels.
+2. **Session Structure (`1h`, `30m`):** Over 2,000 hourly candles compute intra-day value areas, channel slopes, and volume nodes.
+3. **Execution Setup (`15m`, `5m`, `1m`):** Evaluates short-term swing momentum, RSI velocity, and candlestick reversal formations (Pin Bars, Engulfing).
+4. **Yesterday's Session Benchmark:** Anchors current price against Yesterday's High, Low, Close, and Floor Pivots ($P, R_1, S_1$). If the market is inside yesterday's range, the AI prioritizes range-bound trade execution between support and resistance boundaries.
+5. **The Last Live Candle:** Acts solely as the **activation trigger** (providing the live tick price and checking if the current bar confirms a moving average crossover or support bounce). The verdict itself is the consensus score across all 7 horizons.
 
 ---
 

@@ -53,6 +53,80 @@ Financial markets turn on multi-dimensional factors: micro-momentum shifts, macr
 
 ---
 
+## 🧠 How the AI Decides: Does It Judge from the Last Candle Alone?
+
+A fundamental question every quantitative trader and software engineer asks is: **"Does the AI judge market direction by simply looking at the last candle?"**
+
+**The answer is an emphatic NO.**
+
+Judging from a single candle in financial markets would be catastrophic. Micro-intervals (like a 1-minute or 5-minute candle) are dominated by microstructure noise, false breakouts, and institutional stop-loss hunts. An isolated 1-minute green candle can often be a bull trap occurring right beneath a major multi-month resistance ceiling.
+
+Instead, the system employs a **hierarchical multi-dimensional confluence architecture**:
+
+```
+ ┌─────────────────────────────────────────────────────────────────────────────┐
+ │                         CONFLUENCE SYNTHESIS PIPELINE                       │
+ ├─────────────────────────────────────────────────────────────────────────────┤
+ │                                                                             │
+ │   1. Macro Secular Regime (1 Week: 100+ bars)    ──> Trend Direction        │
+ │   2. Intermediate Daily Trend (1 Day: 365 bars)   ──> Major SMA 50/200 & RSI │
+ │   3. Intraday Anchor (1 Hour & 30 Min: 2,000+ bars)──> S/R Value Areas      │
+ │   4. Yesterday's Benchmark (High, Low, Pivots)   ──> Institutional Bounds   │
+ │   5. 20 Rolling Indicators (Returns, Volatility)  ──> ML Probability         │
+ │                                   │                                         │
+ │                                   ▼                                         │
+ │   6. Latest Live Candle Tick ───────────────────────> Execution Trigger     │
+ │                                   │                                         │
+ │                                   ▼                                         │
+ │   FINAL VERDICT: [ STRONG BUY | BULLISH LEAN | NEUTRAL | BEARISH | SELL ]   │
+ └─────────────────────────────────────────────────────────────────────────────┘
+```
+
+### 1. The 7-Timeframe Matrix (Macro to Micro)
+Whenever an analysis is requested, the backend sequentially fetches and processes historical candle data across **7 independent timeframes simultaneously**:
+
+| Timeframe | Institutional Role | Data Horizon Analyzed | Critical Factors Evaluated |
+|:---|:---|:---|:---|
+| **`1 Week`** | **Secular Regime** | 100+ Weekly Bars (~2 Years) | Macro structural direction, 200-week SMA, secular bull/bear regime |
+| **`1 Day`** | **Daily Macro Trend** | 365 Daily Bars (1 Year) | Golden/Death Crosses (SMA 50 vs 200), multi-month trend channels |
+| **`1 Hour`** | **Intraday Anchor** | 2,100+ Hourly Bars (~9 Months) | Trend channel slope, intraday supply/demand order blocks |
+| **`30 Min`** | **Session Structure**| 1,400+ Bars | Session value areas, volume profile distribution |
+| **`15 Min`** | **Short-Term Swing** | 2,800+ Bars | Mean reversion bands, multi-bar pattern confirmation |
+| **`5 Min`** | **Scalp Momentum** | 1,300+ Bars | Bollinger Band volatility expansion/contraction squeezes |
+| **`1 Min`** | **Live Micro Flow** | 2,400+ Bars | Buyer/seller absorption velocity, micro-momentum inflection |
+
+> **Real-World Rule:** If the 1-minute chart shows a sudden bullish surge, but the 1-Day chart is bearish and trading directly below SMA 50 resistance, the AI **refuses to issue a Buy signal**. It classifies the move as a counter-trend bounce into a macro supply zone and flags a `NEUTRAL / HOLD` or `WAIT FOR BREAKOUT` verdict.
+
+### 2. Yesterday's Session Benchmark (Floor Trader Pivots)
+Institutional floor traders and algorithmic market makers treat the previous session's high, low, close, and mathematical floor pivots as foundational liquidity anchors. The engine automatically computes:
+* **Yesterday's High & Low:** The primary reference range.
+* **Central Floor Pivot ($P$):**
+  $$P = \frac{\text{High}_{\text{yesterday}} + \text{Low}_{\text{yesterday}} + \text{Close}_{\text{yesterday}}}{3}$$
+* **First Resistance ($R_1$) and Support ($S_1$):**
+  $$R_1 = 2P - \text{Low}_{\text{yesterday}}, \quad S_1 = 2P - \text{High}_{\text{yesterday}}$$
+* **Secondary Extremes ($R_2$, $S_2$):**
+  $$R_2 = P + (\text{High} - \text{Low}), \quad S_2 = P - (\text{High} - \text{Low})$$
+
+The system classifies current price relative to yesterday:
+* **`INSIDE_RANGE`**: Price is within yesterday's boundaries. The AI advises range-trading between $S_1$ and $R_1$ rather than chasing breakouts.
+* **`BREAKOUT_ABOVE_HIGH`**: Price has penetrated yesterday's high with expanding volume $\rightarrow$ institutional momentum regime.
+* **`BREAKDOWN_BELOW_LOW`**: Price has broken below yesterday's low $\rightarrow$ risk-off liquidity flush.
+
+### 3. The 20-Feature Rolling Historical Window
+Machine learning models (XGBoost, Random Forest, Logistic Regression) do not predict on raw prices (which are non-stationary and cause overfitting). Instead, they consume 20 scale-invariant mathematical features computed over rolling historical windows:
+1. **Multi-Horizon Momentum:** Log returns over `1d`, `5d`, `10d`, and `21d`.
+2. **Volatility Dynamics:** Parkinson realized volatility and 21-day Average True Range (ATR) ratios.
+3. **Momentum Oscillators:** 14-period RSI velocity and MACD line/signal/histogram (requiring 26 historical bars).
+4. **Volume Anomaly:** Ratio of current volume against the 20-day moving average.
+5. **Pattern Geometry:** Algorithmic detection of multi-bar reversal patterns: Bullish/Bearish Engulfing (2 bars), Morning/Evening Stars (3 bars), and Double Bottom pivots (10–30 bars).
+
+### 4. Where the "Last Candle" Fits In
+The **latest live candle** serves strictly as the **activation trigger**:
+- It provides the current price ($P_{\text{live}}$) and confirms whether the current bar is actively closing above or below a moving average or pivot level.
+- **The judgment itself is a consensus score:** The AI aggregates the 7-timeframe matrix, yesterday's benchmark position, and the 20 rolling indicators to assign a **Confluence Score (0% – 100%)** before recommending an entry price, take-profit targets, and hard stop-loss.
+
+---
+
 ## 🔬 Machine Learning Integrity & Real Accuracy Benchmarks
 
 ### 1. Is the Model Genuinely Trained?
